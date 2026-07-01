@@ -30,22 +30,40 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  async function checkSession(savedToken: string) {
+    try {
+      const res = await fetch(`/api/auth/me?token=${encodeURIComponent(savedToken)}`)
+      const data = await res.json()
+      if (data.role && data.role !== 'visitor') {
+        setRole(data.role)
+        setUsername(data.username)
+        setToken(savedToken)
+      } else {
+        // الجلسة انتهت أو انطرد — نسجل خروج تلقائي
+        localStorage.removeItem(TOKEN_KEY)
+        setRole('visitor')
+        setUsername(null)
+        setToken(null)
+      }
+    } catch {
+      localStorage.removeItem(TOKEN_KEY)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
     if (!saved) { setLoading(false); return }
-    fetch(`/api/auth/me?token=${encodeURIComponent(saved)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.role && data.role !== 'visitor') {
-          setRole(data.role)
-          setUsername(data.username)
-          setToken(saved)
-        } else {
-          localStorage.removeItem(TOKEN_KEY)
-        }
-      })
-      .catch(() => localStorage.removeItem(TOKEN_KEY))
-      .finally(() => setLoading(false))
+    checkSession(saved)
+
+    // كل 10 ثواني نتحقق إذا الجلسة لسا شغالة (يكتشف الطرد بسرعة)
+    const interval = setInterval(() => {
+      const currentToken = localStorage.getItem(TOKEN_KEY)
+      if (currentToken) checkSession(currentToken)
+    }, 10000)
+
+    return () => clearInterval(interval)
   }, [])
 
   async function login(user: string, pass: string) {
