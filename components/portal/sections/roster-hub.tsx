@@ -404,7 +404,8 @@ export function RosterHub() {
                           <div className="flex items-center justify-center gap-2">
                             <ServiceStripeIcon
                               count={Number(o.ys) || 0}
-                              className="shrink-0 text-primary"
+                              sector={active}
+                              className="shrink-0"
                             />
                             <select
                               value={o.ys || '0'}
@@ -551,4 +552,3 @@ export function RosterHub() {
     </div>
   )
 }
-
