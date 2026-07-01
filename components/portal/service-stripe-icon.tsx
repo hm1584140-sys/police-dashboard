@@ -2,33 +2,28 @@
 
 import type { SectorId } from '@/lib/sector-context'
 
-// شكل الشريطة لكل قطاع
 const SECTOR_STYLES: Record<SectorId, {
   bg: string
   stripeColor: string
   borderColor: string
-  hasBorder: boolean
 }> = {
-  // LSPD — شرائط رمادية فضية مائلة على خلفية داكنة
+  // LSPD — فضي داكن على رمادي
   LSPD: {
-    bg: '#2a2a2a',
-    stripeColor: '#b0b8c8',
-    borderColor: '#7a8898',
-    hasBorder: true,
+    bg: '#1e2230',
+    stripeColor: '#c0c8d8',
+    borderColor: '#6a7888',
   },
-  // BCSO — شرائط ذهبية على خلفية سوداء
+  // BCSO — ذهبي على أسود
   BCSO: {
-    bg: '#111111',
+    bg: '#0a0a0a',
     stripeColor: '#d4a017',
-    borderColor: '#a07810',
-    hasBorder: true,
+    borderColor: '#8a6008',
   },
-  // SASP — شرائط زرقاء بإطار ذهبي على خلفية رمادية فاتحة
+  // SASP — أزرق ملكي بإطار ذهبي على رمادي
   SASP: {
-    bg: '#8a9aaa',
-    stripeColor: '#1a4a8a',
+    bg: '#7a8a9a',
+    stripeColor: '#1a3a7a',
     borderColor: '#c8a020',
-    hasBorder: true,
   },
 }
 
@@ -45,15 +40,25 @@ export function ServiceStripeIcon({
 
   const style = SECTOR_STYLES[sector]
 
-  const stripeW = 8      // عرض الشريطة
-  const gap = 7          // المسافة بين الشرائط
-  const slant = 12       // مقدار الميل
-  const height = 36      // ارتفاع الشارة
-  const padX = 4         // حشو أفقي
-  const padY = 3         // حشو عمودي
-  const borderThickness = 1.5
+  // أبعاد كل شريطة — أكبر وأوضح
+  const stripeW = 14     // عرض الشريطة
+  const gap = 10         // مسافة بين الشرائط
+  const slant = 18       // ميل الشريطة
+  const height = 48      // ارتفاع الشارة كامل
+  const padX = 5
+  const padY = 4
+  const border = 2       // سمك الإطار
 
   const totalWidth = padX * 2 + (count - 1) * gap + stripeW + slant
+
+  function makePoints(x: number, extra: number) {
+    return [
+      [x + slant - extra, padY - extra],
+      [x + slant + stripeW + extra, padY - extra],
+      [x + stripeW + extra, height - padY + extra],
+      [x - extra, height - padY + extra],
+    ].map((p) => p.join(',')).join(' ')
+  }
 
   return (
     <svg
@@ -64,32 +69,18 @@ export function ServiceStripeIcon({
       role="img"
       aria-label={`${count} سنة خدمة`}
     >
-      {/* الخلفية */}
-      <rect x={0} y={0} width={totalWidth} height={height} fill={style.bg} rx={2} />
+      {/* خلفية الشارة */}
+      <rect x={0} y={0} width={totalWidth} height={height} fill={style.bg} rx={3} />
 
       {/* الشرائط */}
       {Array.from({ length: count }, (_, i) => {
         const x = padX + i * gap
-        const points = [
-          [x + slant, padY],
-          [x + slant + stripeW, padY],
-          [x + stripeW, height - padY],
-          [x, height - padY],
-        ].map((p) => p.join(',')).join(' ')
-
-        const borderPoints = [
-          [x + slant - borderThickness, padY - borderThickness],
-          [x + slant + stripeW + borderThickness, padY - borderThickness],
-          [x + stripeW + borderThickness, height - padY + borderThickness],
-          [x - borderThickness, height - padY + borderThickness],
-        ].map((p) => p.join(',')).join(' ')
-
         return (
           <g key={i}>
-            {style.hasBorder && (
-              <polygon points={borderPoints} fill={style.borderColor} />
-            )}
-            <polygon points={points} fill={style.stripeColor} />
+            {/* إطار الشريطة */}
+            <polygon points={makePoints(x, border)} fill={style.borderColor} />
+            {/* لون الشريطة */}
+            <polygon points={makePoints(x, 0)} fill={style.stripeColor} />
           </g>
         )
       })}
