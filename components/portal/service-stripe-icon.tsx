@@ -1,45 +1,98 @@
 'use client'
 
-// Renders a diagonal "years of service" stripe badge, 1-7 stripes, matching
-// the classic military-style chevron patch look. count=0 renders nothing.
+import type { SectorId } from '@/lib/sector-context'
+
+// شكل الشريطة لكل قطاع
+const SECTOR_STYLES: Record<SectorId, {
+  bg: string
+  stripeColor: string
+  borderColor: string
+  hasBorder: boolean
+}> = {
+  // LSPD — شرائط رمادية فضية مائلة على خلفية داكنة
+  LSPD: {
+    bg: '#2a2a2a',
+    stripeColor: '#b0b8c8',
+    borderColor: '#7a8898',
+    hasBorder: true,
+  },
+  // BCSO — شرائط ذهبية على خلفية سوداء
+  BCSO: {
+    bg: '#111111',
+    stripeColor: '#d4a017',
+    borderColor: '#a07810',
+    hasBorder: true,
+  },
+  // SASP — شرائط زرقاء بإطار ذهبي على خلفية رمادية فاتحة
+  SASP: {
+    bg: '#8a9aaa',
+    stripeColor: '#1a4a8a',
+    borderColor: '#c8a020',
+    hasBorder: true,
+  },
+}
+
 export function ServiceStripeIcon({
   count,
+  sector = 'LSPD',
   className,
 }: {
   count: number
+  sector?: SectorId
   className?: string
 }) {
-  if (count <= 0) return null
+  if (count <= 0 || count > 10) return null
 
-  const stripeWidth = 6
-  const gap = 5
-  const slant = 14
-  const height = 32
-  const width = (count - 1) * gap + stripeWidth + slant + 4
+  const style = SECTOR_STYLES[sector]
 
-  const stripes = Array.from({ length: count }, (_, i) => {
-    const x = 2 + i * gap
-    const points = [
-      [x + slant, 2],
-      [x + slant + stripeWidth, 2],
-      [x + stripeWidth, height - 2],
-      [x, height - 2],
-    ]
-      .map((p) => p.join(','))
-      .join(' ')
-    return <polygon key={i} points={points} fill="currentColor" />
-  })
+  const stripeW = 8      // عرض الشريطة
+  const gap = 7          // المسافة بين الشرائط
+  const slant = 12       // مقدار الميل
+  const height = 36      // ارتفاع الشارة
+  const padX = 4         // حشو أفقي
+  const padY = 3         // حشو عمودي
+  const borderThickness = 1.5
+
+  const totalWidth = padX * 2 + (count - 1) * gap + stripeW + slant
 
   return (
     <svg
-      width={width}
+      width={totalWidth}
       height={height}
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={`0 0 ${totalWidth} ${height}`}
       className={className}
       role="img"
-      aria-label={`${count} ${count === 1 ? 'stripe' : 'stripes'} of service`}
+      aria-label={`${count} سنة خدمة`}
     >
-      {stripes}
+      {/* الخلفية */}
+      <rect x={0} y={0} width={totalWidth} height={height} fill={style.bg} rx={2} />
+
+      {/* الشرائط */}
+      {Array.from({ length: count }, (_, i) => {
+        const x = padX + i * gap
+        const points = [
+          [x + slant, padY],
+          [x + slant + stripeW, padY],
+          [x + stripeW, height - padY],
+          [x, height - padY],
+        ].map((p) => p.join(',')).join(' ')
+
+        const borderPoints = [
+          [x + slant - borderThickness, padY - borderThickness],
+          [x + slant + stripeW + borderThickness, padY - borderThickness],
+          [x + stripeW + borderThickness, height - padY + borderThickness],
+          [x - borderThickness, height - padY + borderThickness],
+        ].map((p) => p.join(',')).join(' ')
+
+        return (
+          <g key={i}>
+            {style.hasBorder && (
+              <polygon points={borderPoints} fill={style.borderColor} />
+            )}
+            <polygon points={points} fill={style.stripeColor} />
+          </g>
+        )
+      })}
     </svg>
   )
 }
