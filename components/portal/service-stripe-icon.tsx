@@ -6,9 +6,9 @@ const SECTOR_STYLES: Record<SectorId, {
   bg: string
   stripeColor: string
 }> = {
-  LSPD: { bg: '#111111', stripeColor: '#c8cdd8' },
-  BCSO: { bg: '#c8a832', stripeColor: '#1a3a7a' },
-  SASP: { bg: '#080808', stripeColor: '#d4a017' },
+  LSPD: { bg: '#111111', stripeColor: '#c8cdd8' },  // فضي على أسود
+  BCSO: { bg: '#080808', stripeColor: '#d4a017' },  // ذهبي على أسود
+  SASP: { bg: '#c8a832', stripeColor: '#1a3a7a' },  // أزرق على ذهبي
 }
 
 export function ServiceStripeIcon({
@@ -24,59 +24,45 @@ export function ServiceStripeIcon({
 
   const style = SECTOR_STYLES[sector]
 
-  // شكل مستطيل عريض أفقي مائل — الشرائط جنب بعض
-  const stripeW = 14   // عرض كل شريطة
-  const gap = 5        // فراغ بين الشرائط
-  const H = 40         // ارتفاع الشارة
-  const slant = 12     // ميل الشكل
-  const padX = 4
-  const padY = 4
-
-  const totalW = padX * 2 + count * stripeW + (count - 1) * gap + slant
+  // شكل عمودي صغير — الشرائط مائلة أفقياً جوا المستطيل
+  const W = 24          // عرض ثابت وصغير
+  const stripeH = 5     // سماكة الشريطة
+  const gap = 3         // فراغ بين الشرائط
+  const slant = 6       // ميل الشريطة
+  const padY = 3
+  const H = padY * 2 + count * stripeH + (count - 1) * gap
 
   const clipId = `clip-${sector}-${count}`
 
   return (
     <svg
-      width={totalW}
+      width={W}
       height={H}
-      viewBox={`0 0 ${totalW} ${H}`}
+      viewBox={`0 0 ${W} ${H}`}
       className={className}
       role="img"
       aria-label={`${count} سنة خدمة`}
     >
       <defs>
         <clipPath id={clipId}>
-          {/* شكل متوازي أضلاع مائل للشارة كاملة */}
-          <polygon points={`
-            ${slant},0
-            ${totalW},0
-            ${totalW - slant},${H}
-            0,${H}
-          `}/>
+          <rect x={0} y={0} width={W} height={H} rx={2}/>
         </clipPath>
       </defs>
 
-      {/* خلفية الشارة — شكل مائل */}
-      <polygon
-        points={`${slant},0 ${totalW},0 ${totalW - slant},${H} 0,${H}`}
-        fill={style.bg}
-      />
+      {/* خلفية */}
+      <rect x={0} y={0} width={W} height={H} fill={style.bg} rx={2}/>
 
-      {/* الشرائط أفقياً جنب بعض */}
+      {/* شرائط مائلة */}
       <g clipPath={`url(#${clipId})`}>
         {Array.from({ length: count }, (_, i) => {
-          const x = padX + i * (stripeW + gap)
-          return (
-            <rect
-              key={i}
-              x={x}
-              y={padY}
-              width={stripeW}
-              height={H - padY * 2}
-              fill={style.stripeColor}
-            />
-          )
+          const y = padY + i * (stripeH + gap)
+          const pts = [
+            `${slant},${y}`,
+            `${W + slant},${y}`,
+            `${W},${y + stripeH}`,
+            `0,${y + stripeH}`,
+          ].join(' ')
+          return <polygon key={i} points={pts} fill={style.stripeColor}/>
         })}
       </g>
     </svg>
