@@ -2,13 +2,10 @@
 
 import type { SectorId } from '@/lib/sector-context'
 
-const SECTOR_STYLES: Record<SectorId, {
-  bg: string
-  stripeColor: string
-}> = {
-  LSPD: { bg: '#111111', stripeColor: '#c8cdd8' },  // فضي على أسود
-  BCSO: { bg: '#080808', stripeColor: '#d4a017' },  // ذهبي على أسود
-  SASP: { bg: '#c8a832', stripeColor: '#1a3a7a' },  // أزرق على ذهبي
+const SECTOR_STYLES: Record<SectorId, { bg: string; stripeColor: string }> = {
+  LSPD: { bg: '#111111', stripeColor: '#c8cdd8' },   // فضي على أسود مثل LAPD
+  BCSO: { bg: '#080808', stripeColor: '#d4a017' },   // ذهبي على أسود
+  SASP: { bg: '#c8a832', stripeColor: '#1a3a7a' },   // أزرق ملكي على ذهبي مثل CHP
 }
 
 export function ServiceStripeIcon({
@@ -24,45 +21,50 @@ export function ServiceStripeIcon({
 
   const style = SECTOR_STYLES[sector]
 
-  // شكل عمودي صغير — الشرائط مائلة أفقياً جوا المستطيل
-  const W = 24          // عرض ثابت وصغير
-  const stripeH = 5     // سماكة الشريطة
-  const gap = 3         // فراغ بين الشرائط
-  const slant = 6       // ميل الشريطة
+  const stripeH = 4    // ارتفاع كل شريط أفقي
+  const gap = 3        // فراغ بين الشرائط
+  const W = 36         // عرض ثابت
+  const slant = 8      // ميل جانبي
   const padY = 3
-  const H = padY * 2 + count * stripeH + (count - 1) * gap
-
-  const clipId = `clip-${sector}-${count}`
+  const padX = 3
+  const totalH = padY * 2 + count * stripeH + (count - 1) * gap
+  const clipId = `hclip-${sector}-${count}`
 
   return (
     <svg
       width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
+      height={totalH}
+      viewBox={`0 0 ${W} ${totalH}`}
       className={className}
       role="img"
       aria-label={`${count} سنة خدمة`}
     >
       <defs>
         <clipPath id={clipId}>
-          <rect x={0} y={0} width={W} height={H} rx={2}/>
+          <polygon points={`${slant},0 ${W},0 ${W - slant},${totalH} 0,${totalH}`} />
         </clipPath>
       </defs>
 
-      {/* خلفية */}
-      <rect x={0} y={0} width={W} height={H} fill={style.bg} rx={2}/>
+      {/* خلفية مائلة */}
+      <polygon
+        points={`${slant},0 ${W},0 ${W - slant},${totalH} 0,${totalH}`}
+        fill={style.bg}
+      />
 
-      {/* شرائط مائلة */}
+      {/* شرائط أفقية */}
       <g clipPath={`url(#${clipId})`}>
         {Array.from({ length: count }, (_, i) => {
           const y = padY + i * (stripeH + gap)
-          const pts = [
-            `${slant},${y}`,
-            `${W + slant},${y}`,
-            `${W},${y + stripeH}`,
-            `0,${y + stripeH}`,
-          ].join(' ')
-          return <polygon key={i} points={pts} fill={style.stripeColor}/>
+          return (
+            <rect
+              key={i}
+              x={padX}
+              y={y}
+              width={W - padX * 2}
+              height={stripeH}
+              fill={style.stripeColor}
+            />
+          )
         })}
       </g>
     </svg>
