@@ -447,6 +447,7 @@ export const sectorThemes: Record<SectorId, SectorTheme> = {
 // Ranks per sector, ordered high command -> cadet
 export const sectorRanks: Record<SectorId, string[]> = {
   LSPD: [
+    'LAPD Commissioner',
     'Chief of Police',
     'Assistant Chief',
     'Deputy Chief',
@@ -629,3 +630,4 @@ export const outfitPieces = [
 export const allRanks: string[] = Array.from(
   new Set([...sectorRanks.LSPD, ...sectorRanks.BCSO, ...sectorRanks.SASP]),
 )
+
