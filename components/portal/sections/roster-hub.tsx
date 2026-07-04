@@ -385,14 +385,20 @@ export function RosterHub() {
                           />
                         </td>
                         <td className="px-2 py-2">
-                          <div className="flex flex-col items-center gap-1">
+                          <div className="relative inline-flex items-center justify-center">
+                            {/* الشارة تظهر فوق */}
                             <InsigniaIcon value={o.insignia} sector={active} size={38}/>
-                            <SelectCell
+                            {/* القائمة مخفية خلف الشارة — قابلة للنقر */}
+                            <select
                               value={o.insignia}
-                              onChange={(v) => updateOfficer(o.id, { insignia: v })}
-                              options={insigniaOptions}
-                              section="roster"
-                            />
+                              onChange={(e) => updateOfficer(o.id, { insignia: e.target.value })}
+                              disabled={!canEdit('roster')}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
+                            >
+                              {insigniaOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
                           </div>
                         </td>
                         <td className="px-2 py-2">
@@ -555,3 +561,4 @@ export function RosterHub() {
     </div>
   )
 }
+
