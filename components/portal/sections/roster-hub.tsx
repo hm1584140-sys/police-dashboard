@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell, SelectCell } from '../editable-cells'
 import { ServiceStripeIcon } from '../service-stripe-icon'
+import { InsigniaIcon } from '../insignia-icon'
 import { useSector } from '@/lib/sector-context'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
@@ -384,12 +385,15 @@ export function RosterHub() {
                           />
                         </td>
                         <td className="px-2 py-2">
-                          <SelectCell
-                            value={o.insignia}
-                            onChange={(v) => updateOfficer(o.id, { insignia: v })}
-                            options={insigniaOptions}
-                            section="roster"
-                          />
+                          <div className="flex flex-col items-center gap-1">
+                            <InsigniaIcon value={o.insignia} sector={active} size={38}/>
+                            <SelectCell
+                              value={o.insignia}
+                              onChange={(v) => updateOfficer(o.id, { insignia: v })}
+                              options={insigniaOptions}
+                              section="roster"
+                            />
+                          </div>
                         </td>
                         <td className="px-2 py-2">
                           <SelectCell
@@ -404,8 +408,7 @@ export function RosterHub() {
                           <div className="flex items-center justify-center gap-2">
                             <ServiceStripeIcon
                               count={Number(o.ys) || 0}
-                              sector={active}
-                              className="shrink-0"
+                              className="shrink-0 text-primary"
                             />
                             <select
                               value={o.ys || '0'}
@@ -552,4 +555,3 @@ export function RosterHub() {
     </div>
   )
 }
-
