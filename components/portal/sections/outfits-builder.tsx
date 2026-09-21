@@ -1,24 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Shirt, User, UserRound } from 'lucide-react'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell, GroupedSelectCell, type SelectGroup } from '../editable-cells'
-import { sectorRanks, outfitPieces, type SectorId } from '@/lib/police-data'
+import { outfitPieces } from '@/lib/police-data'
+import { useSector } from '@/lib/sector-context'
 import { supabase } from '@/lib/supabase'
-
-const RANK_GROUPS: SelectGroup[] = (
-  [
-    ['LSPD', 'LSPD Ranks'],
-    ['BCSO', 'BCSO Ranks'],
-    ['SASP', 'SASP Ranks'],
-  ] as [SectorId, string][]
-).map(([id, label]) => ({
-  label,
-  options: sectorRanks[id].map((r) => `${id} — ${r}`),
-}))
-
-const FIRST_RANK = RANK_GROUPS[0].options[0]
 
 type Gender = 'men' | 'women'
 // key: `${rank}|${gender}|${piece}|${field}`
@@ -121,11 +109,20 @@ function GenderTable({
 }
 
 export function OutfitsBuilder() {
-  const [rank, setRank] = useState<string>(FIRST_RANK)
+  const { sectors } = useSector()
+  const rankGroups = useMemo<SelectGroup[]>(
+    () => sectors.map((sector) => ({
+      label: `${sector.id} — ${sector.name}`,
+      options: sector.ranks.map((item) => `${sector.id} — ${item}`),
+    })),
+    [sectors],
+  )
+  const firstRank = rankGroups[0]?.options[0] ?? ''
+  const [rank, setRank] = useState<string>(firstRank)
   const [store, setStore] = useState<OutfitStore>({})
   const [loading, setLoading] = useState(true)
 
-  // Load all outfit data from Supabase on mount
+  // Load all outfit data from Supabase on mount.
   useEffect(() => {
     async function loadOutfits() {
       setLoading(true)
@@ -141,8 +138,17 @@ export function OutfitsBuilder() {
       }
       setLoading(false)
     }
-    loadOutfits()
+    void loadOutfits()
   }, [])
+
+  useEffect(() => {
+    if (!rankGroups.length) {
+      setRank('')
+      return
+    }
+    const allRanks = rankGroups.flatMap((group) => group.options)
+    if (!allRanks.includes(rank)) setRank(allRanks[0])
+  }, [rankGroups, rank])
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,7 +168,7 @@ export function OutfitsBuilder() {
           <GroupedSelectCell
             value={rank}
             onChange={setRank}
-            groups={RANK_GROUPS}
+            groups={rankGroups}
             section="outfits"
             alwaysEnabled
           />
