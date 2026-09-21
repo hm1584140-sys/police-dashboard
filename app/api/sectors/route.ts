@@ -153,9 +153,6 @@ export async function PATCH(request: NextRequest) {
     const owner = await requireOwner(body.token ?? null)
     if (!owner) return json({ error: 'هذه العملية للمالك فقط' }, 403)
     if (!body.id) return json({ error: 'معرف القطاع مطلوب' }, 400)
-    if (['LSPD', 'BCSO', 'SASP'].includes(String(body.id))) {
-      return json({ error: 'القطاعات الأساسية لا تُحذف، يمكنك إخفاؤها فقط' }, 400)
-    }
 
     const db = getServerSupabase()
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -194,6 +191,9 @@ export async function DELETE(request: NextRequest) {
     const owner = await requireOwner(body.token ?? null)
     if (!owner) return json({ error: 'هذه العملية للمالك فقط' }, 403)
     if (!body.id) return json({ error: 'معرف القطاع مطلوب' }, 400)
+    if (['LSPD', 'BCSO', 'SASP'].includes(String(body.id))) {
+      return json({ error: 'القطاعات الأساسية لا تُحذف، يمكنك إخفاؤها فقط' }, 400)
+    }
 
     const db = getServerSupabase()
     const { error } = await db
