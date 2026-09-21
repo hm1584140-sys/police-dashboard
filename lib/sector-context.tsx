@@ -75,3 +75,5 @@ export function useSector() {
 }
 
 export type { SectorDefinition, SectorId }
+
+export { sectorThemes } from '@/lib/police-data'
