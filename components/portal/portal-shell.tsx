@@ -7,7 +7,7 @@ import {
   Shield, Lock, LogIn, LogOut, Settings, UserX, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useSector, sectorThemes, type SectorId } from '@/lib/sector-context'
+import { useSector } from '@/lib/sector-context'
 import { useAdmin, type Role } from '@/lib/admin-context'
 import { NeonCard, Pill } from './primitives'
 import { SopsPortal } from './sections/sops-portal'
