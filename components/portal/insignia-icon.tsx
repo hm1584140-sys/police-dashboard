@@ -35,7 +35,11 @@ export function InsigniaIcon({
   // لا تعرض شيء لـ N/A
   if (!value || value === '— N/A') return null
 
-  const { main, alt, bg } = SECTOR_COLORS[sector]
+  const { main, alt, bg } = SECTOR_COLORS[sector as keyof typeof SECTOR_COLORS] ?? {
+    main: SILVER,
+    alt: GOLD,
+    bg: '#111827',
+  }
   const W = size
   const H = size
 
