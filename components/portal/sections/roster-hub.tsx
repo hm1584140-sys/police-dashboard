@@ -284,6 +284,9 @@ export function RosterHub() {
                 {active} — {theme.arabic}
               </h3>
               <p className="font-mono text-xs text-muted-foreground">{theme.name}</p>
+              {theme.description ? (
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{theme.description}</p>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
               <Pill tone="muted">
