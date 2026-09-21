@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Check, Eye, EyeOff, Pencil, Plus, RefreshCw, Save, Shield, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NeonCard, Pill } from './primitives'
@@ -407,7 +407,7 @@ function SectorCard({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-bold text-muted-foreground">{label}</span>
