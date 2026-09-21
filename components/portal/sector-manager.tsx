@@ -79,12 +79,13 @@ export function SectorManager({ token, onClose }: Props) {
     await refreshSectors()
   }
 
-  async function activateTemplate(id: string) {
+  async function activateTemplate(sector: SectorDefinition) {
+    if (!window.confirm('هل تريد إضافة قطاع ' + sector.name + ' إلى الموقع؟\nسيتم فتحه مع الرتب والثيم والوصف الجاهز.')) return
     setMessage('')
     const res = await fetch('/api/sectors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, templateId: id }),
+      body: JSON.stringify({ token, templateId: sector.id }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -251,7 +252,7 @@ export function SectorManager({ token, onClose }: Props) {
                         key={sector.id}
                         sector={sector}
                         onEdit={() => setForm(toForm(sector))}
-                        onToggle={() => void (sector.is_template ? activateTemplate(sector.id) : toggleVisibility(sector))}
+                        onToggle={() => void (sector.is_template ? activateTemplate(sector) : toggleVisibility(sector))}
                         onDelete={() => void deleteSector(sector)}
                         hidden
                       />
@@ -399,9 +400,11 @@ function SectorCard({
           <Pencil className="size-3.5" /> تعديل
         </button>
 
-        <button type="button" onClick={onDelete} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20">
-          <Trash2 className="size-3.5" /> حذف
-        </button>
+        {!['LSPD', 'BCSO', 'SASP'].includes(sector.id) ? (
+          <button type="button" onClick={onDelete} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20">
+            <Trash2 className="size-3.5" /> حذف
+          </button>
+        ) : null}
       </div>
     </div>
   )
