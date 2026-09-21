@@ -4,7 +4,7 @@ import { useState, useEffect, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   BookMarked, Radio, Users, Shirt, Gavel, TrafficCone,
-  Shield, Lock, LogIn, LogOut, Settings, UserX,
+  Shield, Lock, LogIn, LogOut, Settings, UserX, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSector, sectorThemes, type SectorId } from '@/lib/sector-context'
@@ -16,6 +16,7 @@ import { RosterHub } from './sections/roster-hub'
 import { OutfitsBuilder } from './sections/outfits-builder'
 import { StrikeBook } from './sections/strike-book'
 import { Violations } from './sections/violations'
+import { SectorManager } from './sector-manager'
 
 const TABS = [
   { id: 'sops', label: 'كتيب البروتوكولات', icon: BookMarked },
@@ -27,7 +28,6 @@ const TABS = [
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
-const SECTORS: SectorId[] = ['LSPD', 'BCSO', 'SASP']
 
 const ROLE_LABEL: Record<Role, string> = { visitor: 'زائر', commander: 'قائد', admin: 'أدمن', owner: 'المالك' }
 const ROLE_TONE: Record<Role, 'muted' | 'gold' | 'danger' | 'neon'> = {
@@ -47,6 +47,7 @@ function OwnerPanel({ token, onClose }: { token: string; onClose: () => void }) 
   const [newPassword, setNewPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [sectorManagerOpen, setSectorManagerOpen] = useState(false)
 
   async function loadData() {
     setLoading(true); setError('')
@@ -95,9 +96,15 @@ function OwnerPanel({ token, onClose }: { token: string; onClose: () => void }) 
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl">
         <NeonCard glow className="max-h-[85vh] overflow-y-auto p-6">
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-heading text-lg font-extrabold text-foreground">لوحة تحكم المالك</h3>
-            <button type="button" onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">إغلاق</button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSectorManagerOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25">
+                <Layers className="size-3.5" /> إدارة القطاعات
+              </button>
+              <button type="button" onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">إغلاق</button>
+            </div>
           </div>
 
           {loading ? <p className="text-sm text-muted-foreground">جارِ التحميل…</p>
@@ -164,6 +171,10 @@ function OwnerPanel({ token, onClose }: { token: string; onClose: () => void }) 
           )}
         </NeonCard>
       </div>
+      {sectorManagerOpen && typeof document !== 'undefined' && createPortal(
+        <SectorManager token={token} onClose={() => setSectorManagerOpen(false)} />,
+        document.body,
+      )}
     </div>
   )
 }
@@ -248,14 +259,14 @@ function AuthControl() {
 }
 
 function SectorSwitch() {
-  const { sector, setSector } = useSector()
+  const { sector, setSector, sectors } = useSector()
   return (
-    <div className="flex items-center gap-1 rounded-lg border border-border bg-background/50 p-1">
-      {SECTORS.map((id) => (
-        <button key={id} type="button" onClick={() => setSector(id)}
-          className={cn('rounded-md px-3 py-1.5 font-heading text-xs font-bold transition-colors',
-            sector === id ? 'bg-primary/20 text-primary glow-neon' : 'text-muted-foreground hover:text-foreground')}>
-          {id}
+    <div className="flex max-w-[46vw] items-center gap-1 overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">
+      {sectors.map((item) => (
+        <button key={item.id} type="button" onClick={() => setSector(item.id)} title={item.description}
+          className={cn('shrink-0 rounded-md px-3 py-1.5 font-heading text-xs font-bold transition-colors',
+            sector === item.id ? 'bg-primary/20 text-primary glow-neon' : 'text-muted-foreground hover:text-foreground')}>
+          {item.id}
         </button>
       ))}
     </div>
@@ -264,8 +275,8 @@ function SectorSwitch() {
 
 export function PortalShell() {
   const [active, setActive] = useState<TabId>('sops')
-  const { sector } = useSector()
-  const theme = sectorThemes[sector]
+  const { currentSector: sectorData } = useSector()
+  const theme = { vars: sectorData.vars }
 
   return (
     <div style={theme.vars as CSSProperties} className="min-h-screen cyber-grid">
@@ -278,7 +289,7 @@ export function PortalShell() {
               </div>
               <div className="leading-tight">
                 <p className="font-heading text-sm font-extrabold text-foreground md:text-base">بوابة عمليات جهاز الشرطة</p>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{sectorThemes[sector].name}</p>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{sectorData.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
