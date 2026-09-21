@@ -11,21 +11,16 @@ import { useSector } from '@/lib/sector-context'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
 import {
-  sectorThemes,
-  sectorRanks,
   insigniaOptions,
   sectionOptions,
   statusOptions,
   certificationKeys,
   makeOfficer,
   emptyCerts,
-  type SectorId,
   type Officer,
   type OfficerStatus,
   type CertKey,
 } from '@/lib/police-data'
-
-const SECTORS: SectorId[] = ['LSPD', 'BCSO', 'SASP']
 
 const statusStyles: Record<OfficerStatus, string> = {
   'ON DUTY': 'border-[oklch(0.7_0.17_150)]/50 bg-[oklch(0.7_0.17_150)]/15 text-[oklch(0.78_0.17_150)]',
@@ -79,14 +74,10 @@ function dbToOfficer(row: Record<string, unknown>): Officer {
 }
 
 export function RosterHub() {
-  const { sector: active, setSector: setActive } = useSector()
+  const { sector: active, setSector: setActive, sectors, currentSector } = useSector()
   const { canEdit } = useAdmin()
   const editable = canEdit('roster')
-  const [rosters, setRosters] = useState<Record<SectorId, Officer[]>>({
-    LSPD: [],
-    BCSO: [],
-    SASP: [],
-  })
+  const [rosters, setRosters] = useState<Record<string, Officer[]>>({})
   const [loading, setLoading] = useState(true)
   const [widths, setWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS)
 
@@ -100,12 +91,12 @@ export function RosterHub() {
         .order('created_at', { ascending: true })
 
       if (!error && data) {
-        const grouped: Record<SectorId, Officer[]> = { LSPD: [], BCSO: [], SASP: [] }
+        const grouped: Record<string, Officer[]> = {}
         for (const row of data) {
-          const sector = row.sector as SectorId
-          if (grouped[sector]) {
-            grouped[sector].push(dbToOfficer(row))
-          }
+          const sector = String(row.sector ?? '')
+          if (!sector) continue
+          if (!grouped[sector]) grouped[sector] = []
+          grouped[sector].push(dbToOfficer(row))
         }
         setRosters(grouped)
       }
@@ -139,8 +130,8 @@ export function RosterHub() {
     [widths],
   )
 
-  const theme = sectorThemes[active]
-  const rows = rosters[active]
+  const theme = currentSector
+  const rows = rosters[active] ?? []
   const tableWidth = COLUMNS.reduce((sum, c) => sum + (widths[c.key] ?? c.w), 0) + ACTIONS_W
 
   async function updateOfficer(id: string, patch: Partial<Officer>) {
@@ -240,8 +231,8 @@ export function RosterHub() {
 
       {/* Sector selector */}
       <div className="grid gap-3 sm:grid-cols-3">
-        {SECTORS.map((id) => {
-          const t = sectorThemes[id]
+        {sectors.map((t) => {
+          const id = t.id
           const isActive = active === id
           return (
             <button
@@ -403,7 +394,7 @@ export function RosterHub() {
                           <SelectCell
                             value={o.rank}
                             onChange={(v) => updateOfficer(o.id, { rank: v })}
-                            options={sectorRanks[active]}
+                            options={currentSector.ranks}
                             placeholder="الرتبة"
                             section="roster"
                           />
