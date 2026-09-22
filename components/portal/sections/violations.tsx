@@ -8,6 +8,7 @@ import { TextCell } from '@/components/portal/editable-cells'
 import { violations as defaultViolations } from '@/lib/police-data'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
+import type { PageDefinition } from '@/lib/page-types'
 
 type ViolationItem = {
   id: string
@@ -17,7 +18,7 @@ type ViolationItem = {
   isSevere: boolean
 }
 
-export function Violations() {
+export function Violations({ page }: { page?: PageDefinition }) {
   const { canEdit } = useAdmin()
   const editable = canEdit('violations')
   const [items, setItems] = useState<ViolationItem[]>([])
@@ -113,8 +114,8 @@ export function Violations() {
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Violations"
-        title="المخالفات المرورية والدليل الجنائي"
-        desc="دليل تفاعلي لتعريف درجات التهم والمخالفات لتسهيل عمل الأفراد في الميدان."
+        title={page?.title ?? 'المخالفات المرورية والدليل الجنائي'}
+        desc={page?.description ?? 'دليل تفاعلي لتعريف درجات التهم والمخالفات لتسهيل عمل الأفراد في الميدان.'}
         icon={<TrafficCone className="size-6" />}
       />
 
