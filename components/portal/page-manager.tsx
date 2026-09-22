@@ -319,10 +319,10 @@ function SopsCopyEditor({
       <div className="grid gap-3 md:grid-cols-2">
         {SOPS_COPY_FIELDS.map((field) => (
           <Field key={field.key} label={field.label}>
-            <textarea
+            <BufferedTextarea
               value={values[field.key] ?? DEFAULT_SOPS_COPY[field.key] ?? ''}
               rows={field.rows ?? 2}
-              onChange={(event) => onChange({ ...values, [field.key]: event.target.value })}
+              onCommit={(next) => onChange({ ...values, [field.key]: next })}
               className="input-base resize-y"
             />
           </Field>
@@ -387,12 +387,12 @@ function BlockEditor({
         </div>
       </div>
       {block.type === 'heading' || block.type === 'paragraph' ? (
-        <textarea value={block.text} onChange={(e) => onChange({ ...block, text: e.target.value })} className="input-base min-h-24 resize-y" />
+        <BufferedTextarea value={block.text} onCommit={(value) => onChange({ ...block, text: value })} className="input-base min-h-24 resize-y" />
       ) : null}
       {block.type === 'list' ? (
         <div className="grid gap-2">
           <input value={block.title ?? ''} onChange={(e) => onChange({ ...block, title: e.target.value })} className="input-base" placeholder="عنوان القائمة" />
-          <textarea value={block.items.join('\n')} onChange={(e) => onChange({ ...block, items: e.target.value.split('\n').filter(Boolean) })} className="input-base min-h-32 resize-y" placeholder="عنصر في كل سطر" />
+          <BufferedTextarea value={block.items.join('\n')} onCommit={(value) => onChange({ ...block, items: value.split('\n').map((item) => item.trim()).filter(Boolean) })} className="input-base min-h-32 resize-y" placeholder="عنصر في كل سطر" />
         </div>
       ) : null}
       {block.type === 'callout' ? (
@@ -403,7 +403,7 @@ function BlockEditor({
             <option value="danger">خطر</option>
           </select>
           <input value={block.title} onChange={(e) => onChange({ ...block, title: e.target.value })} className="input-base" placeholder="العنوان" />
-          <textarea value={block.text} onChange={(e) => onChange({ ...block, text: e.target.value })} className="input-base min-h-28 resize-y" placeholder="النص" />
+          <BufferedTextarea value={block.text} onCommit={(value) => onChange({ ...block, text: value })} className="input-base min-h-28 resize-y" placeholder="النص" />
         </div>
       ) : null}
       {block.type === 'table' ? (
@@ -421,15 +421,15 @@ function TableBlockEditor({ block, onChange }: { block: Extract<ContentBlock,{ty
     <div className="grid gap-2">
       <input value={block.title ?? ''} onChange={(e) => onChange({ ...block, title: e.target.value })} className="input-base" placeholder="عنوان الجدول" />
       <Field label="الأعمدة — كل عمود في سطر">
-        <textarea value={block.columns.join('\n')} onChange={(e) => {
-          const columns=e.target.value.split('\n').filter(Boolean)
+        <BufferedTextarea value={block.columns.join('\n')} onCommit={(value) => {
+          const columns=value.split('\n').map((item)=>item.trim()).filter(Boolean)
           const rows=block.rows.map((row)=>columns.map((_,i)=>row[i]??''))
           onChange({ ...block, columns, rows })
         }} className="input-base min-h-20 resize-y" />
       </Field>
       <Field label="الصفوف — استخدم | بين الأعمدة، وسطر لكل صف">
-        <textarea value={block.rows.map((row)=>row.join('|')).join('\n')} onChange={(e) => {
-          const rows=e.target.value.split('\n').filter((line)=>line.trim()).map((line)=>line.split('|'))
+        <BufferedTextarea value={block.rows.map((row)=>row.join('|')).join('\n')} onCommit={(value) => {
+          const rows=value.split('\n').filter((line)=>line.trim()).map((line)=>line.split('|'))
           onChange({ ...block, rows })
         }} className="input-base min-h-28 resize-y font-mono text-xs" />
       </Field>
@@ -440,11 +440,41 @@ function TableBlockEditor({ block, onChange }: { block: Extract<ContentBlock,{ty
 function StatsBlockEditor({ block, onChange }: { block: Extract<ContentBlock,{type:'stats'}>; onChange:(block:ContentBlock)=>void }) {
   return (
     <Field label="البطاقات — value|label|hint لكل سطر">
-      <textarea value={block.items.map((item)=>[item.value,item.label,item.hint??''].join('|')).join('\n')} onChange={(e)=>{
-        const items=e.target.value.split('\n').filter(Boolean).map((line)=>{const [value,label,hint]=line.split('|');return {value:value??'',label:label??'',hint:hint??''}})
+      <BufferedTextarea value={block.items.map((item)=>[item.value,item.label,item.hint??''].join('|')).join('\n')} onCommit={(text)=>{
+        const items=text.split('\n').filter(Boolean).map((line)=>{const [value,label,hint]=line.split('|');return {value:value??'',label:label??'',hint:hint??''}})
         onChange({ ...block, items })
       }} className="input-base min-h-24 resize-y font-mono text-xs" />
     </Field>
+  )
+}
+
+function BufferedTextarea({
+  value,
+  onCommit,
+  className,
+  rows,
+  placeholder,
+}: {
+  value: string
+  onCommit: (value: string) => void
+  className?: string
+  rows?: number
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+
+  return (
+    <textarea
+      value={draft}
+      rows={rows}
+      placeholder={placeholder}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        if (draft !== value) onCommit(draft)
+      }}
+      className={className}
+    />
   )
 }
 
