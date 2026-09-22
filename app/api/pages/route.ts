@@ -3,6 +3,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { getSession } from '@/lib/auth'
 import type { PageRenderer } from '@/lib/page-types'
 
+const PAGE_COLUMNS = 'id,slug,title,description,icon,page_type,renderer,is_visible,is_system,sort_order,sector_id,blocks,created_at,updated_at'
+
 async function requireOwner(token: string | null) {
   const session = await getSession(token)
   return session?.role === 'owner' ? session : null
@@ -14,7 +16,9 @@ function cleanPage(input: Record<string, unknown>) {
     description: String(input.description ?? '').trim(),
     icon: String(input.icon ?? 'FileText'),
     page_type: String(input.page_type ?? 'content'),
-    renderer: String(input.renderer ?? 'cms') as PageRenderer,
+    renderer: (['cms', 'sops', 'radio', 'roster', 'outfits', 'strikes', 'violations'].includes(String(input.renderer))
+      ? String(input.renderer)
+      : 'cms') as PageRenderer,
     is_visible: input.is_visible !== false,
     sort_order: Number(input.sort_order ?? 100),
     sector_id: input.sector_id ? String(input.sector_id) : null,
@@ -28,7 +32,7 @@ export async function GET(req: Request) {
   const owner = await requireOwner(token)
 
   const db = getServerSupabase()
-  const query = db.from('pd_pages').select('*').order('sort_order', { ascending: true })
+  const query = db.from('pd_pages').select(PAGE_COLUMNS).order('sort_order', { ascending: true })
 
   const { data, error } = owner
     ? await query
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
       slug: cleanSlug,
       is_system: false,
       ...cleanPage(input),
-    }).select('*').single()
+    }).select(PAGE_COLUMNS).single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json(data, { status: 201 })
@@ -78,7 +82,7 @@ export async function PATCH(req: Request) {
       .from('pd_pages')
       .update({ ...cleanPage(input), updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('*')
+      .select(PAGE_COLUMNS)
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
