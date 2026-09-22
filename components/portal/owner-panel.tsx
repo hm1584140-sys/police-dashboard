@@ -17,10 +17,10 @@ import {
   X,
 } from 'lucide-react'
 import { NeonCard, Pill } from './primitives'
+import { cn } from '@/lib/utils'
 import { PageManager } from './page-manager'
 import { SectorManager } from './sector-manager'
 import type { Role } from '@/lib/auth'
-import type { PageDefinition } from '@/lib/page-types'
 
 type Tab = 'overview' | 'accounts' | 'messages' | 'appeals' | 'pages' | 'sectors' | 'roster'
 
@@ -130,8 +130,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     setAccountForm(null); setMessage('تم إنشاء الحساب ✓'); await loadCore()
   }
 
-  async function updateAccount() {
-    if (!editing) return
+  async function updateAccount(account: EditableAccount) {
     const res = await fetch('/api/auth/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -389,7 +388,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
       ) : null}
 
       {editing ? (
-        <EditAccountModal account={editing} onClose={()=>setEditing(null)} onSave={(next)=>{setEditing(next);setTimeout(()=>void updateAccount(),0)}} />
+        <EditAccountModal account={editing} onClose={()=>setEditing(null)} onSave={(next)=>{setEditing(next);void updateAccount(next)}} />
       ) : null}
 
       {banTarget ? (
