@@ -223,6 +223,7 @@ export function PortalShell() {
   const activePage = useMemo(() => pages.find((page) => page.slug === active) ?? pages[0] ?? BUILTIN_PAGES[0], [pages, active])
 
   function renderActivePage(page: PageDefinition) {
+    if (page.slug === 'sops' || page.renderer === 'sops') return <SopsPortal />
     if (page.renderer === 'radio') return <RadioProtocols page={page} />
     if (page.renderer === 'roster') return <RosterHub page={page} />
     if (page.renderer === 'outfits') return <OutfitsBuilder page={page} />
@@ -234,7 +235,7 @@ export function PortalShell() {
   return (
     <div style={theme.vars as CSSProperties} className="min-h-screen cyber-grid">
       <div className="min-h-screen bg-gradient-to-b from-background/40 via-background/80 to-background">
-        <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/95">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
               <div className="flex size-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary glow-neon"><Shield className="size-6" /></div>
