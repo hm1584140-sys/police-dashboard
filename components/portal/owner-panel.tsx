@@ -22,7 +22,7 @@ import { PageManager } from './page-manager'
 import { SectorManager } from './sector-manager'
 import type { Role } from '@/lib/auth'
 
-type Tab = 'overview' | 'accounts' | 'messages' | 'appeals' | 'pages' | 'sectors' | 'roster'
+type Tab = 'overview' | 'accounts' | 'messages' | 'appeals' | 'pages' | 'sectors' | 'roster' | 'logs'
 
 type Account = {
   username: string
@@ -62,6 +62,18 @@ type OwnerMessage = {
   created_at: string
 }
 
+type AuditLog = {
+  id: string
+  actor_username: string
+  actor_discord: string
+  actor_role: string
+  action: string
+  target_type: string
+  target_id: string
+  details: Record<string, unknown>
+  created_at: string
+}
+
 type RosterColumn = {
   id: string
   sector_id: string
@@ -76,6 +88,7 @@ let ownerPanelCache: {
   sessions: Session[]
   appeals: Appeal[]
   messages: OwnerMessage[]
+  logs: AuditLog[]
   at: number
 } | null = null
 
@@ -90,6 +103,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [sessions, setSessions] = useState<Session[]>([])
   const [appeals, setAppeals] = useState<Appeal[]>([])
   const [messages, setMessages] = useState<OwnerMessage[]>([])
+  const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [pageManagerOpen, setPageManagerOpen] = useState(false)
@@ -109,6 +123,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
       setSessions(ownerPanelCache.sessions)
       setAppeals(ownerPanelCache.appeals)
       setMessages(ownerPanelCache.messages)
+      setLogs(ownerPanelCache.logs)
       setLoading(false)
       return
     }
@@ -116,25 +131,28 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     setLoading(true)
     if (force) setMessage('')
     try {
-      const [aRes, sRes, pRes, mRes] = await Promise.all([
+      const [aRes, sRes, pRes, mRes, lRes] = await Promise.all([
         fetch('/api/auth/accounts?token=' + encodeURIComponent(token)),
         fetch('/api/auth/sessions?token=' + encodeURIComponent(token)),
         fetch('/api/auth/appeals?token=' + encodeURIComponent(token)),
         fetch('/api/messages?token=' + encodeURIComponent(token)),
+        fetch('/api/audit?token=' + encodeURIComponent(token) + '&limit=250'),
       ])
-      if (!aRes.ok || !sRes.ok || !pRes.ok || !mRes.ok) throw new Error()
-      const [nextAccounts, nextSessions, nextAppeals, nextMessages] = await Promise.all([
-        aRes.json(), sRes.json(), pRes.json(), mRes.json(),
+      if (!aRes.ok || !sRes.ok || !pRes.ok || !mRes.ok || !lRes.ok) throw new Error()
+      const [nextAccounts, nextSessions, nextAppeals, nextMessages, nextLogs] = await Promise.all([
+        aRes.json(), sRes.json(), pRes.json(), mRes.json(), lRes.json(),
       ])
       setAccounts(nextAccounts)
       setSessions(nextSessions)
       setAppeals(nextAppeals)
       setMessages(nextMessages)
+      setLogs(nextLogs)
       ownerPanelCache = {
         accounts: nextAccounts,
         sessions: nextSessions,
         appeals: nextAppeals,
         messages: nextMessages,
+        logs: nextLogs,
         at: Date.now(),
       }
     } catch {
@@ -265,6 +283,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
               ['pages','القوائم والمحتوى', FileCog],
               ['sectors','القطاعات', ShieldCheck],
               ['roster','أعمدة كشف القوات', FileCog],
+              ['logs','السجلات', RefreshCw],
             ] as const).map(([id,label,Icon]) => (
               <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-bold', tab === id ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/30')}>
                 <Icon className="size-3.5" /> {label}
@@ -394,6 +413,36 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
             <div className="rounded-xl border border-border bg-background/30 p-5">
               <p className="mb-4 text-sm text-muted-foreground">أضف أعمدة جديدة لكل قطاع. العمود يظهر فوراً على جميع الأفراد الحاليين والجدد داخل نفس القطاع.</p>
               <button type="button" onClick={() => setRosterManagerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary"><FileCog className="size-4" /> إدارة أعمدة كشف القوات</button>
+            </div>
+          ) : null}
+
+          {tab === 'logs' ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-heading font-bold text-foreground">سجل النشاط</h4>
+                  <p className="mt-1 text-xs text-muted-foreground">يعرض من نفذ العملية واسم Discord ونوع التعديل والوقت.</p>
+                </div>
+                <Pill tone="muted">{logs.length} سجل</Pill>
+              </div>
+              <div className="grid gap-2">
+                {logs.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-border bg-background/30 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone="neon">{item.actor_discord || item.actor_username || 'غير معروف'}</Pill>
+                      <Pill tone="muted">{item.actor_role || '—'}</Pill>
+                      <span className="text-xs font-bold text-foreground">{auditActionLabel(item.action)}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      الحساب: {item.actor_username || '—'}
+                      {item.target_type ? ` • الهدف: ${item.target_type}` : ''}
+                      {item.target_id ? ` • ${item.target_id}` : ''}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString('ar')}</p>
+                  </div>
+                ))}
+                {!logs.length ? <p className="py-10 text-center text-sm text-muted-foreground">لا توجد سجلات حتى الآن.</p> : null}
+              </div>
             </div>
           ) : null}
         </NeonCard>
@@ -532,6 +581,45 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
       <div className="mt-2 grid gap-2">{columns.map(c=><div key={c.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2"><div><p className="font-bold">{c.label}</p><p className="text-[10px] text-muted-foreground">{c.kind}</p></div><button type="button" onClick={()=>void remove(c.id)} className="rounded border border-border p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button></div>)}{!columns.length?<p className="text-xs text-muted-foreground">لا توجد أعمدة مخصصة لهذا القطاع.</p>:null}</div>
     </div>
   </Modal>
+}
+
+function auditActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    login: 'تسجيل دخول',
+    logout: 'تسجيل خروج',
+    account_create: 'إنشاء حساب',
+    account_update: 'تعديل حساب',
+    account_delete: 'حذف حساب',
+    account_ban: 'تبنيد حساب',
+    account_unban: 'فك باند',
+    session_kick: 'طرد جلسة',
+    message_send: 'إرسال رسالة',
+    message_delete: 'حذف رسالة',
+    page_create: 'إنشاء قائمة',
+    page_update: 'تعديل قائمة',
+    page_delete: 'حذف قائمة',
+    sector_create: 'إنشاء قطاع',
+    sector_update: 'تعديل قطاع',
+    sector_delete: 'حذف قطاع',
+    strike_create: 'إضافة جزاء',
+    strike_update: 'تعديل جزاء',
+    strike_delete: 'حذف جزاء',
+    roster_create: 'إضافة فرد',
+    roster_update: 'تعديل فرد',
+    roster_delete: 'حذف فرد',
+    radio_create: 'إضافة سطر لاسلكي',
+    radio_update: 'تعديل سطر لاسلكي',
+    radio_delete: 'حذف سطر لاسلكي',
+    violation_create: 'إضافة مخالفة',
+    violation_update: 'تعديل مخالفة',
+    violation_delete: 'حذف مخالفة',
+    outfit_update: 'تعديل ملابس',
+    roster_column_create: 'إضافة عمود كشف',
+    roster_column_update: 'تعديل عمود كشف',
+    roster_column_delete: 'حذف عمود كشف',
+    appeal_review: 'مراجعة طلب فك باند',
+  }
+  return labels[action] ?? action
 }
 
 function Stat({ label, value, tone='neon' }: { label:string; value:number; tone?:'neon'|'gold'|'danger' }) {
