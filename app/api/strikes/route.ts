@@ -23,7 +23,7 @@ async function ensureSeeded() {
 
 export async function GET(req: Request) {
   await ensureSeeded()
-  const { data, error } = await getServerSupabase().from('strikes').select('*').order('position', { ascending: true })
+  const { data, error } = await getServerSupabase().from('strikes').select('id,code,description,points,is_critical,position').order('position', { ascending: true })
   if (error) return NextResponse.json({ error: 'تعذر تحميل الجزاءات' }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       points: Number(body.points ?? 0),
       is_critical: Boolean(body.isCritical),
       position: count ?? 0,
-    }).select('*').single()
+    }).select('id,code,description,points,is_critical,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json(data, { status: 201 })
   } catch {
@@ -57,7 +57,7 @@ export async function PATCH(req: Request) {
     if (body.description !== undefined) dbPatch.description = String(body.description)
     if (body.points !== undefined) dbPatch.points = Number(body.points)
     if (body.isCritical !== undefined) dbPatch.is_critical = Boolean(body.isCritical)
-    const { data, error } = await getServerSupabase().from('strikes').update(dbPatch).eq('id', body.id).select('*').single()
+    const { data, error } = await getServerSupabase().from('strikes').update(dbPatch).eq('id', body.id).select('id,code,description,points,is_critical,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json(data)
   } catch {
