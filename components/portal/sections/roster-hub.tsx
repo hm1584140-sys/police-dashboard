@@ -97,7 +97,15 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
         setCustomColumns([])
       }
     }
+
+    const handleColumnsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ sector?: string }>).detail
+      if (!detail?.sector || detail.sector === active) void loadColumns()
+    }
+
     void loadColumns()
+    window.addEventListener('pd:roster-columns-changed', handleColumnsChanged)
+    return () => window.removeEventListener('pd:roster-columns-changed', handleColumnsChanged)
   }, [active])
 
   useEffect(() => {
