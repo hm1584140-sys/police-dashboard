@@ -473,6 +473,7 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
   const [kind,setKind]=useState<RosterColumn['kind']>('text')
   const [options,setOptions]=useState('')
   const [loading,setLoading]=useState(false)
+  const [adding,setAdding]=useState(false)
 
   async function loadSectors(){
     const res=await fetch('/api/sectors?mode=admin&token='+encodeURIComponent(token))
@@ -491,9 +492,29 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
   useEffect(()=>{void loadColumns()},[sector])
 
   async function add(){
-    if(!label.trim())return
-    const res=await fetch('/api/roster-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,sectorId:sector,label,kind,options:options.split('\n').map(v=>v.trim()).filter(Boolean)})})
-    if(res.ok){setLabel('');setOptions('');await loadColumns()}
+    if(!label.trim() || adding)return
+    setAdding(true)
+    const tempId=`temp-${crypto.randomUUID()}`
+    const temp: RosterColumn={
+      id:tempId,
+      sector_id:sector,
+      column_key:`temp_${Date.now()}`,
+      label:label.trim(),
+      kind,
+      options:options.split('\n').map(v=>v.trim()).filter(Boolean),
+    }
+    setColumns(prev=>[...prev,temp])
+    const res=await fetch('/api/roster-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,sectorId:sector,label,kind,options:temp.options})})
+    if(res.ok){
+      const created=await res.json()
+      setColumns(prev=>prev.map(item=>item.id===tempId?created:item))
+      setLabel('')
+      setOptions('')
+      window.dispatchEvent(new CustomEvent('pd:roster-columns-changed',{detail:{sector}}))
+    }else{
+      setColumns(prev=>prev.filter(item=>item.id!==tempId))
+    }
+    setAdding(false)
   }
   async function remove(id:string){
     await fetch('/api/roster-columns',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,id})});await loadColumns()
@@ -507,7 +528,7 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
         <Field label="نوع الخانة"><select value={kind} onChange={e=>setKind(e.target.value as RosterColumn['kind'])} className="input-base"><option value="text">نص</option><option value="number">رقم</option><option value="select">قائمة اختيار</option></select></Field>
       </div>
       {kind==='select'?<Field label="خيارات القائمة — كل خيار في سطر"><textarea value={options} onChange={e=>setOptions(e.target.value)} className="input-base min-h-20" /></Field>:null}
-      <button type="button" onClick={()=>void add()} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إضافة العمود</button>
+      <button type="button" onClick={()=>void add()} disabled={adding} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary disabled:opacity-50"><Plus className="size-4" /> {adding?'جاري الإضافة...':'إضافة العمود'}</button>
       <div className="mt-2 grid gap-2">{columns.map(c=><div key={c.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2"><div><p className="font-bold">{c.label}</p><p className="text-[10px] text-muted-foreground">{c.kind}</p></div><button type="button" onClick={()=>void remove(c.id)} className="rounded border border-border p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button></div>)}{!columns.length?<p className="text-xs text-muted-foreground">لا توجد أعمدة مخصصة لهذا القطاع.</p>:null}</div>
     </div>
   </Modal>
