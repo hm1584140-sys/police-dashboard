@@ -6,6 +6,8 @@ import { SECTOR_THEME_PRESETS, getBuiltinSectors } from '@/lib/sector-types'
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, { status })
 
+const SECTOR_COLUMNS = 'id,name,arabic_name,description,tagline,theme,ranks,is_visible,is_template,created_at'
+
 async function requireOwner(token: string | null) {
   if (!token) return null
   const session = await getSession(token)
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
 
       const { data, error } = await db
         .from('pd_sectors')
-        .select('*')
+        .select(SECTOR_COLUMNS)
         .order('created_at', { ascending: true })
 
       if (error) return json({ error: error.message }, 500)
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await db
       .from('pd_sectors')
-      .select('*')
+      .select(SECTOR_COLUMNS)
       .eq('is_visible', true)
       .order('created_at', { ascending: true })
 
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (body.templateId) {
       const { data: template, error: findError } = await db
         .from('pd_sectors')
-        .select('*')
+        .select(SECTOR_COLUMNS)
         .eq('id', String(body.templateId))
         .eq('is_template', true)
         .single()
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
         .from('pd_sectors')
         .update({ is_visible: true, updated_at: new Date().toISOString() })
         .eq('id', template.id)
-        .select('*')
+        .select(SECTOR_COLUMNS)
         .single()
 
       if (error) return json({ error: error.message }, 500)
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
         is_visible: true,
         is_template: false,
       })
-      .select('*')
+      .select(SECTOR_COLUMNS)
       .single()
 
     if (error) return json({ error: error.message }, 500)
@@ -155,7 +157,36 @@ export async function PATCH(request: NextRequest) {
     if (!body.id) return json({ error: 'معرف القطاع مطلوب' }, 400)
 
     const db = getServerSupabase()
+    const originalId = String(body.id).trim()
+    const requestedId = body.newId !== undefined ? slugify(String(body.newId)) : originalId
+    const protectedIds = ['LSPD', 'BCSO', 'SASP']
+
+    const { data: currentSector, error: currentError } = await db
+      .from('pd_sectors')
+      .select('id,is_template')
+      .eq('id', originalId)
+      .maybeSingle()
+
+    if (currentError || !currentSector) return json({ error: 'القطاع غير موجود' }, 404)
+
+    if (requestedId !== originalId) {
+      if (!requestedId) return json({ error: 'معرف القطاع الجديد غير صالح' }, 400)
+      if (protectedIds.includes(originalId) || currentSector.is_template) {
+        return json({ error: 'لا يمكن تغيير معرف قطاع أساسي أو قالب جاهز' }, 400)
+      }
+      if (protectedIds.includes(requestedId)) {
+        return json({ error: 'هذا المعرف محجوز لقطاع أساسي' }, 409)
+      }
+      const { data: duplicate } = await db
+        .from('pd_sectors')
+        .select('id')
+        .eq('id', requestedId)
+        .maybeSingle()
+      if (duplicate) return json({ error: 'معرف القطاع مستخدم بالفعل' }, 409)
+    }
+
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (requestedId !== originalId) patch.id = requestedId
 
     if (body.name !== undefined) patch.name = String(body.name).trim()
     if (body.arabicName !== undefined) patch.arabic_name = String(body.arabicName).trim()
@@ -174,11 +205,20 @@ export async function PATCH(request: NextRequest) {
     const { data, error } = await db
       .from('pd_sectors')
       .update(patch)
-      .eq('id', String(body.id))
-      .select('*')
+      .eq('id', originalId)
+      .select(SECTOR_COLUMNS)
       .single()
 
     if (error) return json({ error: error.message }, 500)
+
+    if (requestedId !== originalId) {
+      await Promise.all([
+        db.from('officers').update({ sector: requestedId }).eq('sector', originalId),
+        db.from('pd_roster_columns').update({ sector_id: requestedId }).eq('sector_id', originalId),
+        db.from('pd_pages').update({ sector_id: requestedId }).eq('sector_id', originalId),
+      ])
+    }
+
     return json({ sector: dbToSector(data) })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'تعذر تعديل القطاع' }, 500)
