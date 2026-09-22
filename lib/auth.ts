@@ -258,7 +258,7 @@ export async function setAccountBan(
 export async function getBanAppeals() {
   const { data } = await db()
     .from('pd_ban_appeals')
-    .select('*')
+    .select('id,username,discord_name,message,status,owner_response,created_at,updated_at')
     .order('created_at', { ascending: false })
   return data ?? []
 }
@@ -283,7 +283,7 @@ export async function createBanAppeal(username: string, discordName: string, mes
       discord_name: discordName.trim() || account.discord_name || '',
       message: text,
     })
-    .select('*')
+    .select('id,username,discord_name,message,status,owner_response,created_at,updated_at')
     .single()
 
   if (error) throw new Error(error.message)
