@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { BookOpen, Lock, LogIn, LogOut, MessageSquare, Settings, Shield, X } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { BookOpen, Lock, LogIn, LogOut, MessageSquare, Pencil, Settings, Shield, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSector } from '@/lib/sector-context'
 import { useAdmin, type Role } from '@/lib/admin-context'
@@ -13,15 +13,18 @@ import { OutfitsBuilder } from './sections/outfits-builder'
 import { StrikeBook } from './sections/strike-book'
 import { Violations } from './sections/violations'
 import { OwnerPanel } from './owner-panel'
-import { CmsPage } from './cms-page'
+import { PageManager } from './page-manager'
+import { CmsBlocks, CmsPage } from './cms-page'
 import { BUILTIN_PAGES, PAGE_ICON_MAP, type PageDefinition } from '@/lib/page-types'
+
+let pageCache: PageDefinition[] | null = null
 
 const ROLE_LABEL: Record<Role, string> = { visitor: 'زائر', commander: 'قائد', admin: 'أدمن', owner: 'المالك' }
 const ROLE_TONE: Record<Role, 'muted' | 'gold' | 'danger' | 'neon'> = {
   visitor: 'muted', commander: 'gold', admin: 'danger', owner: 'neon',
 }
 
-export function SectorSwitch() {
+export const SectorSwitch = memo(function SectorSwitch() {
   const { sector, setSector, sectors } = useSector()
   return (
     <div className="flex max-w-[42vw] items-center gap-1 overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">
@@ -34,7 +37,7 @@ export function SectorSwitch() {
       ))}
     </div>
   )
-}
+})
 
 type InboxItem = {
   id: string
@@ -202,33 +205,57 @@ function AuthControl() {
 }
 
 export function PortalShell() {
-  const [pages, setPages] = useState<PageDefinition[]>(BUILTIN_PAGES)
+  const [pages, setPages] = useState<PageDefinition[]>(() => pageCache ?? BUILTIN_PAGES)
   const [active, setActive] = useState('sops')
+  const [quickEditorOpen, setQuickEditorOpen] = useState(false)
   const { currentSector } = useSector()
+  const { isOwner, token } = useAdmin()
 
-  useEffect(() => {
-    fetch('/api/pages')
-      .then((res) => res.ok ? res.json() : [])
-      .then((data) => {
-        if (Array.isArray(data) && data.length) {
-          const next = data.filter((page: PageDefinition) => page.is_visible)
-          setPages(next.length ? next : BUILTIN_PAGES)
-          setActive((current) => next.some((page) => page.slug === current) ? current : (next[0]?.slug ?? 'sops'))
-        }
-      })
-      .catch(() => {})
+  const loadPages = useCallback(async () => {
+    try {
+      const res = await fetch('/api/pages')
+      if (!res.ok) return
+      const data = await res.json()
+      if (!Array.isArray(data) || !data.length) return
+      const next = data
+        .filter((page: PageDefinition) => page.is_visible)
+        .map((page: PageDefinition) => page.slug === 'sops' ? { ...page, renderer: 'sops' as const } : page)
+      if (!next.length) return
+      pageCache = next
+      setPages(next)
+      setActive((current) => next.some((page: PageDefinition) => page.slug === current) ? current : (next[0]?.slug ?? 'sops'))
+    } catch {
+      // Keep the last known page list on transient network errors.
+    }
   }, [])
 
-  const theme = { vars: currentSector.vars }
+  useEffect(() => {
+    void loadPages()
+    const handlePagesChanged = () => void loadPages()
+    window.addEventListener('pd:pages-changed', handlePagesChanged)
+    return () => window.removeEventListener('pd:pages-changed', handlePagesChanged)
+  }, [loadPages])
+
+  const theme = useMemo(() => ({ vars: currentSector.vars }), [currentSector.vars])
   const activePage = useMemo(() => pages.find((page) => page.slug === active) ?? pages[0] ?? BUILTIN_PAGES[0], [pages, active])
 
+  function withExtraContent(page: PageDefinition, content: React.ReactNode) {
+    const extra = (page.blocks ?? []).filter((block) => block.type !== 'sops-copy')
+    return (
+      <div className="flex flex-col gap-6">
+        {content}
+        {extra.length ? <CmsBlocks blocks={extra} /> : null}
+      </div>
+    )
+  }
+
   function renderActivePage(page: PageDefinition) {
-    if (page.slug === 'sops' || page.renderer === 'sops') return <SopsPortal />
-    if (page.renderer === 'radio') return <RadioProtocols page={page} />
-    if (page.renderer === 'roster') return <RosterHub page={page} />
-    if (page.renderer === 'outfits') return <OutfitsBuilder page={page} />
-    if (page.renderer === 'strikes') return <StrikeBook page={page} />
-    if (page.renderer === 'violations') return <Violations page={page} />
+    if (page.slug === 'sops' || page.renderer === 'sops') return <SopsPortal page={page} />
+    if (page.renderer === 'radio') return withExtraContent(page, <RadioProtocols page={page} />)
+    if (page.renderer === 'roster') return withExtraContent(page, <RosterHub page={page} />)
+    if (page.renderer === 'outfits') return withExtraContent(page, <OutfitsBuilder page={page} />)
+    if (page.renderer === 'strikes') return withExtraContent(page, <StrikeBook page={page} />)
+    if (page.renderer === 'violations') return withExtraContent(page, <Violations page={page} />)
     return <CmsPage page={page} />
   }
 
@@ -264,8 +291,29 @@ export function PortalShell() {
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
+          {isOwner && token && activePage ? (
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setQuickEditorOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20"
+              >
+                <Pencil className="size-3.5" />
+                تعديل هذه الصفحة
+              </button>
+            </div>
+          ) : null}
           {activePage ? renderActivePage(activePage) : null}
         </main>
+
+        {quickEditorOpen && token && activePage ? (
+          <PageManager
+            token={token}
+            initialPage={activePage}
+            onSaved={() => void loadPages()}
+            onClose={() => setQuickEditorOpen(false)}
+          />
+        ) : null}
 
         <footer className="border-t border-border py-6 text-center">
           <p className="font-mono text-xs text-muted-foreground">CLASSIFIED • INTERNAL USE ONLY • جهاز الشرطة — جميع الحقوق محفوظة</p>
