@@ -71,6 +71,14 @@ type RosterColumn = {
   options: string[]
 }
 
+let ownerPanelCache: {
+  accounts: Account[]
+  sessions: Session[]
+  appeals: Appeal[]
+  messages: OwnerMessage[]
+  at: number
+} | null = null
+
 const ROLE_LABEL: Record<Role, string> = { visitor: 'زائر', commander: 'قائد', admin: 'أدمن', owner: 'مالك' }
 const ROLE_TONE: Record<Role, 'muted' | 'gold' | 'danger' | 'neon'> = {
   visitor: 'muted', commander: 'gold', admin: 'danger', owner: 'neon',
@@ -94,9 +102,19 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [composerOpen, setComposerOpen] = useState(false)
   const [messageForm, setMessageForm] = useState({ audience: 'all' as OwnerMessage['audience'], recipient: '', title: '', body: '' })
 
-  async function loadCore() {
+  async function loadCore(force = false) {
+    const freshCache = ownerPanelCache && Date.now() - ownerPanelCache.at < 30_000
+    if (!force && freshCache && ownerPanelCache) {
+      setAccounts(ownerPanelCache.accounts)
+      setSessions(ownerPanelCache.sessions)
+      setAppeals(ownerPanelCache.appeals)
+      setMessages(ownerPanelCache.messages)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
-    setMessage('')
+    if (force) setMessage('')
     try {
       const [aRes, sRes, pRes, mRes] = await Promise.all([
         fetch('/api/auth/accounts?token=' + encodeURIComponent(token)),
@@ -105,10 +123,20 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
         fetch('/api/messages?token=' + encodeURIComponent(token)),
       ])
       if (!aRes.ok || !sRes.ok || !pRes.ok || !mRes.ok) throw new Error()
-      setAccounts(await aRes.json())
-      setSessions(await sRes.json())
-      setAppeals(await pRes.json())
-      setMessages(await mRes.json())
+      const [nextAccounts, nextSessions, nextAppeals, nextMessages] = await Promise.all([
+        aRes.json(), sRes.json(), pRes.json(), mRes.json(),
+      ])
+      setAccounts(nextAccounts)
+      setSessions(nextSessions)
+      setAppeals(nextAppeals)
+      setMessages(nextMessages)
+      ownerPanelCache = {
+        accounts: nextAccounts,
+        sessions: nextSessions,
+        appeals: nextAppeals,
+        messages: nextMessages,
+        at: Date.now(),
+      }
     } catch {
       setMessage('تعذر تحميل بعض بيانات الإدارة')
     } finally {
@@ -127,7 +155,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setMessage(data.error ?? 'تعذر إنشاء الحساب')
-    setAccountForm(null); setMessage('تم إنشاء الحساب ✓'); await loadCore()
+    setAccountForm(null); setMessage('تم إنشاء الحساب ✓'); await loadCore(true)
   }
 
   async function updateAccount(account: EditableAccount) {
@@ -145,7 +173,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setMessage(data.error ?? 'تعذر تعديل الحساب')
-    setEditing(null); setMessage('تم تعديل الحساب ✓'); await loadCore()
+    setEditing(null); setMessage('تم تعديل الحساب ✓'); await loadCore(true)
   }
 
   async function ban(username: string, banned: boolean, reason = '') {
@@ -156,7 +184,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setMessage(data.error ?? 'تعذر تنفيذ العملية')
-    setBanTarget(null); setBanReason(''); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓'); await loadCore()
+    setBanTarget(null); setBanReason(''); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓'); await loadCore(true)
   }
 
   async function removeAccount(username: string) {
@@ -167,7 +195,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
       body: JSON.stringify({ token, username }),
     })
     if (!res.ok) return setMessage('تعذر حذف الحساب')
-    setMessage('تم حذف الحساب ✓'); await loadCore()
+    setMessage('تم حذف الحساب ✓'); await loadCore(true)
   }
 
   async function sendMessage() {
@@ -187,7 +215,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     setComposerOpen(false)
     setMessageForm({ audience: 'all', recipient: '', title: '', body: '' })
     setMessage('تم إرسال الرسالة ✓')
-    await loadCore()
+    await loadCore(true)
   }
 
   async function reviewAppeal(appeal: Appeal, status: Appeal['status']) {
@@ -200,7 +228,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     })
     if (!res.ok) return setMessage('تعذر تحديث الطلب')
     setMessage(status === 'approved' ? 'تم فك الباند ومراجعة الطلب ✓' : 'تم رفض الطلب ✓')
-    await loadCore()
+    await loadCore(true)
   }
 
   const onlineCount = sessions.length
@@ -221,7 +249,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
               <p className="mt-1 text-xs text-muted-foreground">إدارة الحسابات، الجلسات، الباندات، الطلبات، الرسائل، القطاعات والمحتوى.</p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => void loadCore()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted/40">
+              <button type="button" onClick={() => void loadCore(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted/40">
                 <RefreshCw className="size-3.5" /> تحديث
               </button>
               <button type="button" onClick={onClose} className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted/40"><X className="size-4" /></button>
@@ -319,7 +347,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                   <div key={item.id} className="rounded-xl border border-border bg-background/30 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div><div className="flex flex-wrap gap-2"><Pill tone="muted">{item.audience}</Pill>{item.recipient_username ? <Pill tone="neon">{item.recipient_username}</Pill> : null}</div><h5 className="mt-2 font-heading font-bold text-foreground">{item.title || 'رسالة إدارية'}</h5><p className="mt-1 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{item.body}</p></div>
-                      <button type="button" onClick={async()=>{await fetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,id:item.id})});void loadCore()}} className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                      <button type="button" onClick={async()=>{await fetch('/api/messages',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,id:item.id})});void loadCore(true)}} className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
                     </div>
                   </div>
                 ))}
