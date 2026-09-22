@@ -88,12 +88,23 @@ export function StrikeBook({ page }: { page?: PageDefinition }) {
 
   async function addStrike() {
     if (!token || !editable) return
+    const tempId = `temp-${crypto.randomUUID()}`
+    const optimistic: StrikeItem = { id: tempId, code: '', description: '', points: 0, is_critical: false }
+    setItems((prev) => [...prev, optimistic])
+
     const res = await fetch('/api/strikes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, code: '', description: '', points: 0, isCritical: false }),
     })
-    if (res.ok) await load()
+
+    if (!res.ok) {
+      setItems((prev) => prev.filter((item) => item.id !== tempId))
+      return
+    }
+
+    const created = await res.json()
+    setItems((prev) => prev.map((item) => item.id === tempId ? created : item))
   }
 
   async function updateStrike(id: string, patch: Partial<StrikeItem>) {
