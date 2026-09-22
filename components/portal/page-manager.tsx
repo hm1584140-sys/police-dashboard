@@ -10,6 +10,7 @@ import {
   type ContentBlock,
   type PageDefinition,
 } from '@/lib/page-types'
+import { DEFAULT_SOPS_COPY, SOPS_COPY_FIELDS, getSopsCopy, setSopsCopy } from '@/lib/sops-copy'
 
 function blankPage(): PageDefinition {
   return {
@@ -28,7 +29,17 @@ function blankPage(): PageDefinition {
   }
 }
 
-export function PageManager({ token, onClose }: { token: string; onClose: () => void }) {
+export function PageManager({
+  token,
+  onClose,
+  initialPage = null,
+  onSaved,
+}: {
+  token: string
+  onClose: () => void
+  initialPage?: PageDefinition | null
+  onSaved?: () => void
+}) {
   const [pages, setPages] = useState<PageDefinition[]>(BUILTIN_PAGES)
   const [page, setPage] = useState<PageDefinition | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,7 +52,10 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
       const res = await fetch('/api/pages?token=' + encodeURIComponent(token))
       if (!res.ok) throw new Error()
       const data = await res.json()
-      setPages((data as PageDefinition[]).length ? data : BUILTIN_PAGES)
+      const normalized = (data as PageDefinition[]).map((item) =>
+        item.slug === 'sops' ? { ...item, renderer: 'sops' as const } : item,
+      )
+      setPages(normalized.length ? normalized : BUILTIN_PAGES)
     } catch {
       setPages(BUILTIN_PAGES)
       setMessage('تعذر تحميل القوائم من قاعدة البيانات')
@@ -50,7 +64,16 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    void load()
+    if (initialPage) {
+      setPage({
+        ...initialPage,
+        renderer: initialPage.slug === 'sops' ? 'sops' : initialPage.renderer,
+        blocks: initialPage.blocks ?? [],
+      })
+    }
+  }, [])
 
   async function save() {
     if (!page) return
@@ -69,6 +92,8 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
       if (!res.ok) throw new Error(body.error || 'تعذر الحفظ')
       setMessage('تم حفظ القائمة ✓')
       setPage(null)
+      window.dispatchEvent(new CustomEvent('pd:pages-changed'))
+      onSaved?.()
       await load()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر الحفظ')
@@ -83,6 +108,8 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, ...target, is_visible: !target.is_visible }),
     })
+    window.dispatchEvent(new CustomEvent('pd:pages-changed'))
+    onSaved?.()
     await load()
   }
 
@@ -94,6 +121,8 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, id: target.id }),
     })
+    window.dispatchEvent(new CustomEvent('pd:pages-changed'))
+    onSaved?.()
     await load()
   }
 
@@ -176,7 +205,8 @@ function PageEditor({
   onSave: () => void
   onClose: () => void
 }) {
-  const canEditBlocks = page.renderer === 'cms'
+  const isSops = page.slug === 'sops' || page.renderer === 'sops'
+  const canEditBlocks = !isSops
   const update = (patch: Partial<PageDefinition>) => setPage({ ...page, ...patch })
 
   return (
@@ -218,12 +248,17 @@ function PageEditor({
             </Field>
           </div>
 
-          {canEditBlocks ? (
+          {isSops ? (
+            <SopsCopyEditor
+              blocks={page.blocks}
+              onChange={(values) => update({ blocks: setSopsCopy(page.blocks, values), renderer: 'sops' })}
+            />
+          ) : canEditBlocks ? (
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
                 <div>
-                  <h5 className="font-heading text-sm font-bold text-foreground">محتوى الصفحة</h5>
-                  <p className="text-[11px] text-muted-foreground">تقدر تضيف نصوص، قوائم، تنبيهات، جداول وبطاقات.</p>
+                  <h5 className="font-heading text-sm font-bold text-foreground">{page.renderer === 'cms' ? 'محتوى الصفحة' : 'محتوى إضافي لهذه القائمة'}</h5>
+                  <p className="text-[11px] text-muted-foreground">{page.renderer === 'cms' ? 'تقدر تضيف نصوص، قوائم، تنبيهات، جداول وبطاقات.' : 'يظهر هذا المحتوى أسفل الوظيفة الأساسية للقائمة ويمكن تعديله أو حذفه في أي وقت.'}</p>
                 </div>
                 <BlockAdd onAdd={(block) => update({ blocks: [...page.blocks, block] })} />
               </div>
@@ -262,6 +297,36 @@ function PageEditor({
             </button>
           </div>
         </NeonCard>
+      </div>
+    </div>
+  )
+}
+
+function SopsCopyEditor({
+  blocks,
+  onChange,
+}: {
+  blocks: ContentBlock[]
+  onChange: (values: Record<string, string>) => void
+}) {
+  const values = getSopsCopy(blocks)
+  return (
+    <div className="mt-5 rounded-xl border border-border bg-background/30 p-4">
+      <div className="mb-4">
+        <h5 className="font-heading text-sm font-bold text-foreground">نصوص كتيب البروتوكولات</h5>
+        <p className="mt-1 text-[11px] text-muted-foreground">كل تعديل هنا محلي داخل النموذج ولن يُحفظ إلا عند الضغط على زر «حفظ» أسفل النافذة.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {SOPS_COPY_FIELDS.map((field) => (
+          <Field key={field.key} label={field.label}>
+            <textarea
+              value={values[field.key] ?? DEFAULT_SOPS_COPY[field.key] ?? ''}
+              rows={field.rows ?? 2}
+              onChange={(event) => onChange({ ...values, [field.key]: event.target.value })}
+              className="input-base resize-y"
+            />
+          </Field>
+        ))}
       </div>
     </div>
   )
@@ -309,6 +374,8 @@ function BlockEditor({
   onDelete: () => void
   onMove: (direction: number) => void
 }) {
+  if (block.type === 'sops-copy') return null
+
   return (
     <div className="rounded-xl border border-border bg-background/30 p-4">
       <div className="mb-3 flex items-center justify-between">
