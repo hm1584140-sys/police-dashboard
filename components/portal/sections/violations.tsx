@@ -182,6 +182,7 @@ export function Violations({ page }: { page?: PageDefinition }) {
                       onChange={(val) => updateViolation(v.id, { desc: val })}
                       placeholder="وصف المخالفة..."
                       className="font-heading text-base font-bold"
+                      section="violations"
                     />
                   ) : (
                     <p className="font-heading text-base font-bold text-foreground text-balance">
@@ -194,6 +195,7 @@ export function Violations({ page }: { page?: PageDefinition }) {
                         value={v.penalty}
                         onChange={(val) => updateViolation(v.id, { penalty: val })}
                         placeholder="العقوبة..."
+                        section="violations"
                       />
                       <button
                         type="button"
