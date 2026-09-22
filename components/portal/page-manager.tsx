@@ -61,8 +61,8 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           page.id
-            ? { token, id: page.id, ...page }
-            : { token, slug: page.slug, ...page },
+            ? { token, ...page }
+            : { token, ...page },
         ),
       })
       const body = await res.json().catch(() => ({}))
@@ -81,7 +81,7 @@ export function PageManager({ token, onClose }: { token: string; onClose: () => 
     await fetch('/api/pages', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, id: target.id, ...target, is_visible: !target.is_visible }),
+      body: JSON.stringify({ token, ...target, is_visible: !target.is_visible }),
     })
     await load()
   }
