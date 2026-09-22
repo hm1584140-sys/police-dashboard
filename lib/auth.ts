@@ -99,7 +99,7 @@ export async function findAccount(username: string, password: string): Promise<A
   } as Account
 }
 
-export async function createSession(account: Pick<Account, 'username' | 'role' | 'discord_name'>): Promise<string> {
+export async function createSession(account: Pick<Account, 'username' | 'role'>, discordName: string): Promise<string> {
   const token = crypto.randomUUID()
   const now = Date.now()
 
@@ -107,7 +107,7 @@ export async function createSession(account: Pick<Account, 'username' | 'role' |
     token,
     username: account.username,
     role: account.role,
-    discord_name: account.discord_name ?? '',
+    discord_name: discordName.trim(),
     login_at: now,
   })
 
