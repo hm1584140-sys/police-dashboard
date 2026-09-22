@@ -23,16 +23,21 @@ export function CmsPage({ page }: { page: PageDefinition }) {
         icon={<Icon className="size-6" />}
       />
 
-      <div className="flex flex-col gap-4">
-        {page.blocks.map((block, index) => (
-          <Block key={index} block={block} />
-        ))}
-        {page.blocks.length === 0 ? (
-          <NeonCard className="p-8 text-center text-sm text-muted-foreground">
-            هذه الصفحة جاهزة للتحرير من لوحة المالك.
-          </NeonCard>
-        ) : null}
-      </div>
+      <CmsBlocks blocks={page.blocks} emptyMessage />
+    </div>
+  )
+}
+
+export function CmsBlocks({ blocks, emptyMessage = false }: { blocks: ContentBlock[]; emptyMessage?: boolean }) {
+  const visibleBlocks = blocks.filter((block) => block.type !== 'sops-copy')
+  return (
+    <div className="flex flex-col gap-4">
+      {visibleBlocks.map((block, index) => <Block key={index} block={block} />)}
+      {emptyMessage && visibleBlocks.length === 0 ? (
+        <NeonCard className="p-8 text-center text-sm text-muted-foreground">
+          هذه الصفحة جاهزة للتحرير من لوحة المالك.
+        </NeonCard>
+      ) : null}
     </div>
   )
 }
