@@ -11,6 +11,7 @@ import { InsigniaIcon } from '../insignia-icon'
 import { useSector } from '@/lib/sector-context'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
+import { logClientAction } from '@/lib/client-audit'
 import {
   insigniaOptions,
   sectionOptions,
@@ -80,7 +81,7 @@ function dbToOfficer(row: Record<string, unknown>): Officer {
 
 export function RosterHub({ page }: { page?: PageDefinition }) {
   const { sector: active, setSector: setActive, sectors, currentSector } = useSector()
-  const { canEdit } = useAdmin()
+  const { canEdit, token } = useAdmin()
   const editable = canEdit('roster')
   const [rosters, setRosters] = useState<Record<string, Officer[]>>({})
   const [loading, setLoading] = useState(true)
@@ -191,7 +192,8 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
     }))
 
     // Save to Supabase
-    await supabase.from('officers').update(dbPatch).eq('id', id)
+    const { error } = await supabase.from('officers').update(dbPatch).eq('id', id)
+    if (!error) void logClientAction(token, 'roster_update', 'officer', id, { sector: active, fields: Object.keys(dbPatch) })
   }
 
   async function toggleCert(id: string, cert: CertKey) {
@@ -246,6 +248,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
       ...prev,
       [active]: (prev[active] ?? []).map((row) => row.id === tempId ? dbToOfficer(data) : row),
     }))
+    void logClientAction(token, 'roster_create', 'officer', String(data.id), { sector: active })
   }
 
   async function removeOfficer(id: string) {
@@ -258,7 +261,8 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
     }))
 
     // Delete from Supabase
-    await supabase.from('officers').delete().eq('id', id)
+    const { error } = await supabase.from('officers').delete().eq('id', id)
+    if (!error) void logClientAction(token, 'roster_delete', 'officer', id, { sector: active })
   }
 
   return (
