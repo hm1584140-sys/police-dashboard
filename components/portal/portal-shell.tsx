@@ -179,9 +179,9 @@ function AuthControl() {
 
               {!bannedInfo ? (
                 <form onSubmit={handleLogin} className="grid gap-3">
-                  <input autoFocus value={user} onChange={(e) => setUser(e.target.value)} placeholder="اسم المستخدم" className="input-base" />
+                  <input autoFocus value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="اسمك في Discord — مطلوب" className="input-base" required />
+                  <input value={user} onChange={(e) => setUser(e.target.value)} placeholder="اسم المستخدم" className="input-base" />
                   <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="كلمة المرور" className="input-base" />
-                  <input value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="اسمك في Discord — مطلوب" className="input-base" required />
                   {error ? <p className="text-xs text-destructive">{error}</p> : null}
                   <button type="submit" disabled={submitting} className="rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 font-bold text-primary disabled:opacity-50">{submitting ? 'جارِ التحقق...' : 'دخول'}</button>
                 </form>
