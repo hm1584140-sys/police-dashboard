@@ -11,13 +11,14 @@ const TOKEN_KEY = 'pd_session_token'
 type AdminContextValue = {
   role: Role
   username: string | null
+  discordName: string | null
   token: string | null
   isOwner: boolean
   isAdmin: boolean
   isCommander: boolean
   isVisitor: boolean
   loading: boolean
-  login: (username: string, password: string) => Promise<{ ok: boolean; banned?: boolean; reason?: string; discordName?: string }>
+  login: (username: string, password: string, discordName: string) => Promise<{ ok: boolean; banned?: boolean; reason?: string; discordName?: string; error?: string }>
   logout: () => void
   canEdit: (section: Section) => boolean
 }
@@ -27,6 +28,7 @@ const AdminContext = createContext<AdminContextValue | null>(null)
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('visitor')
   const [username, setUsername] = useState<string | null>(null)
+  const [discordName, setDiscordName] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -37,12 +39,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (data.role && data.role !== 'visitor') {
         setRole(data.role)
         setUsername(data.username)
+        setDiscordName(data.discordName ?? '')
         setToken(savedToken)
       } else {
         // الجلسة انتهت أو انطرد — نسجل خروج تلقائي
         localStorage.removeItem(TOKEN_KEY)
         setRole('visitor')
         setUsername(null)
+        setDiscordName(null)
         setToken(null)
       }
     } catch {
@@ -66,19 +70,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [])
 
-  async function login(user: string, pass: string) {
+  async function login(user: string, pass: string, discord: string) {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass }),
+        body: JSON.stringify({ username: user, password: pass, discordName: discord }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        return { ok: false, banned: Boolean(data.banned), reason: data.reason, discordName: data.discordName }
+        return { ok: false, banned: Boolean(data.banned), reason: data.reason, discordName: data.discordName, error: data.error }
       }
       setRole(data.role)
       setUsername(data.username)
+      setDiscordName(data.discordName ?? discord)
       setToken(data.token)
       localStorage.setItem(TOKEN_KEY, data.token)
       return { ok: true, discordName: data.discordName }
@@ -98,6 +103,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY)
     setRole('visitor')
     setUsername(null)
+    setDiscordName(null)
     setToken(null)
   }
 
@@ -109,7 +115,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      role, username, token,
+      role, username, discordName, token,
       isOwner: role === 'owner',
       isAdmin: role === 'admin' || role === 'owner',
       isCommander: role === 'commander',

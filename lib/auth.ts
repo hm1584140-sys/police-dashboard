@@ -1,3 +1,4 @@
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { getServerSupabase } from '@/lib/supabase-server'
 
 export type Role = 'visitor' | 'commander' | 'admin' | 'owner'
@@ -32,6 +33,41 @@ function db() {
   return getServerSupabase()
 }
 
+const PASSWORD_PREFIX = 'scrypt'
+const PASSWORD_KEY_LENGTH = 64
+
+function derivePassword(password: string, salt: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, PASSWORD_KEY_LENGTH, (error, derivedKey) => {
+      if (error) reject(error)
+      else resolve(derivedKey)
+    })
+  })
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex')
+  const derived = await derivePassword(password, salt)
+  return PASSWORD_PREFIX + '$' + salt + '$' + derived.toString('hex')
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const prefix = PASSWORD_PREFIX + '$'
+  if (!stored.startsWith(prefix)) {
+    return stored === password
+  }
+
+  const parts = stored.split('$')
+  const salt = parts[1]
+  const hashHex = parts[2]
+  if (!salt || !hashHex) return false
+
+  const expected = Buffer.from(hashHex, 'hex')
+  const derived = await derivePassword(password, salt)
+  if (expected.length !== derived.length) return false
+  return timingSafeEqual(expected, derived)
+}
+
 export async function findAccount(username: string, password: string): Promise<Account | null> {
   const clean = username.trim().toLowerCase()
   if (!clean || !password) return null
@@ -40,20 +76,30 @@ export async function findAccount(username: string, password: string): Promise<A
     .from('pd_accounts')
     .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at')
     .eq('username', clean)
-    .eq('password', password)
     .maybeSingle()
 
   if (error || !data) return null
+  if (!(await verifyPassword(password, data.password))) return null
+
+  if (!data.password.startsWith(PASSWORD_PREFIX + '$')) {
+    const upgraded = await hashPassword(password)
+    await db()
+      .from('pd_accounts')
+      .update({ password: upgraded, updated_at: new Date().toISOString() })
+      .eq('username', clean)
+      .eq('password', data.password)
+  }
 
   return {
     ...data,
+    password: '',
     role: data.role as Role,
     discord_name: data.discord_name ?? '',
     ban_reason: data.ban_reason ?? '',
   } as Account
 }
 
-export async function createSession(account: Pick<Account, 'username' | 'role' | 'discord_name'>): Promise<string> {
+export async function createSession(account: Pick<Account, 'username' | 'role'>, discordName: string): Promise<string> {
   const token = crypto.randomUUID()
   const now = Date.now()
 
@@ -61,7 +107,7 @@ export async function createSession(account: Pick<Account, 'username' | 'role' |
     token,
     username: account.username,
     role: account.role,
-    discord_name: account.discord_name ?? '',
+    discord_name: discordName.trim(),
     login_at: now,
   })
 
@@ -176,12 +222,13 @@ export async function createAccount(input: {
   const username = input.username.trim().toLowerCase()
   const password = input.password.trim()
   if (!username || !password) throw new Error('missing_credentials')
+  const passwordHash = await hashPassword(password)
 
   const { data, error } = await db()
     .from('pd_accounts')
     .insert({
       username,
-      password,
+      password: passwordHash,
       role: input.role,
       discord_name: input.discordName?.trim() ?? '',
       is_banned: false,
@@ -214,7 +261,7 @@ export async function updateAccount(
 
   const nextUsername = updates.newUsername?.trim().toLowerCase()
   if (nextUsername) patch.username = nextUsername
-  if (updates.newPassword?.trim()) patch.password = updates.newPassword.trim()
+  if (updates.newPassword?.trim()) patch.password = await hashPassword(updates.newPassword.trim())
   if (updates.role) patch.role = updates.role
   if (updates.discordName !== undefined) patch.discord_name = updates.discordName.trim()
 

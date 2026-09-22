@@ -81,12 +81,13 @@ function Inbox({ token, onClose }: { token: string; onClose: () => void }) {
 }
 
 function AuthControl() {
-  const { role, username, token, isOwner, login, logout } = useAdmin()
+  const { role, username, discordName, token, isOwner, login, logout } = useAdmin()
   const [open, setOpen] = useState(false)
   const [ownerOpen, setOwnerOpen] = useState(false)
   const [inboxOpen, setInboxOpen] = useState(false)
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
+  const [discord, setDiscord] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [bannedInfo, setBannedInfo] = useState<{ username: string; reason: string; discordName?: string } | null>(null)
@@ -96,13 +97,18 @@ function AuthControl() {
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault()
+    if (!discord.trim()) {
+      setError('اسم Discord مطلوب')
+      return
+    }
     setSubmitting(true)
-    const result = await login(user, pass)
+    const result = await login(user, pass, discord)
     setSubmitting(false)
     if (result.ok) {
       setOpen(false)
       setUser('')
       setPass('')
+      setDiscord('')
       setError('')
       setBannedInfo(null)
       return
@@ -112,7 +118,7 @@ function AuthControl() {
       setAppealDiscord(result.discordName || '')
       setError('')
     } else {
-      setError('اسم المستخدم أو كلمة المرور غير صحيحة')
+      setError(result.error || 'اسم المستخدم أو كلمة المرور غير صحيحة')
     }
   }
 
@@ -133,12 +139,15 @@ function AuthControl() {
 
   function closeLogin() {
     setOpen(false)
-    setUser(''); setPass(''); setError(''); setBannedInfo(null); setAppealSent(false)
+    setUser(''); setPass(''); setDiscord(''); setError(''); setBannedInfo(null); setAppealSent(false)
   }
 
   return (
     <div className="flex items-center gap-2">
-      <Pill tone={ROLE_TONE[role]}>{ROLE_LABEL[role]}{username ? ` — ${username}` : ''}</Pill>
+      <Pill tone={ROLE_TONE[role]}>
+        {ROLE_LABEL[role]}
+        {discordName ? ` — ${discordName}` : username ? ` — ${username}` : ''}
+      </Pill>
 
       {username && token ? (
         <button type="button" onClick={() => setInboxOpen(true)} title="الرسائل" className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground hover:text-primary">
@@ -170,7 +179,8 @@ function AuthControl() {
 
               {!bannedInfo ? (
                 <form onSubmit={handleLogin} className="grid gap-3">
-                  <input autoFocus value={user} onChange={(e) => setUser(e.target.value)} placeholder="اسم المستخدم" className="input-base" />
+                  <input autoFocus value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="اسمك في Discord — مطلوب" className="input-base" required />
+                  <input value={user} onChange={(e) => setUser(e.target.value)} placeholder="اسم المستخدم" className="input-base" />
                   <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="كلمة المرور" className="input-base" />
                   {error ? <p className="text-xs text-destructive">{error}</p> : null}
                   <button type="submit" disabled={submitting} className="rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 font-bold text-primary disabled:opacity-50">{submitting ? 'جارِ التحقق...' : 'دخول'}</button>

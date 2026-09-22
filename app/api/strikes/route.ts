@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { strikes as defaultStrikes } from '@/lib/police-data'
+import { writeAuditLog } from '@/lib/audit'
 
 async function staff(token: string | null) {
   const session = await getSession(token)
@@ -31,7 +32,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    if (!(await staff(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const actor = await staff(body.token)
+    if (!actor) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const db = getServerSupabase()
     const { count } = await db.from('strikes').select('id', { count: 'exact', head: true })
     const { data, error } = await db.from('strikes').insert({
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
       position: count ?? 0,
     }).select('id,code,description,points,is_critical,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(actor, 'strike_create', 'strike', String(data.id), { code: data.code })
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'تعذر إضافة البند' }, { status: 400 })
@@ -51,7 +54,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json()
-    if (!(await staff(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const actor = await staff(body.token)
+    if (!actor) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const dbPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (body.code !== undefined) dbPatch.code = String(body.code)
     if (body.description !== undefined) dbPatch.description = String(body.description)
@@ -59,6 +63,7 @@ export async function PATCH(req: Request) {
     if (body.isCritical !== undefined) dbPatch.is_critical = Boolean(body.isCritical)
     const { data, error } = await getServerSupabase().from('strikes').update(dbPatch).eq('id', body.id).select('id,code,description,points,is_critical,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(actor, 'strike_update', 'strike', String(body.id), { fields: Object.keys(dbPatch).filter((key) => key !== 'updated_at') })
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'تعذر تعديل البند' }, { status: 400 })
@@ -68,9 +73,11 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const body = await req.json()
-    if (!(await staff(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const actor = await staff(body.token)
+    if (!actor) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { error } = await getServerSupabase().from('strikes').delete().eq('id', body.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(actor, 'strike_delete', 'strike', String(body.id))
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'تعذر حذف البند' }, { status: 400 })

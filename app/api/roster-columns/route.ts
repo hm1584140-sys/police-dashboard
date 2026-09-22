@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { writeAuditLog } from '@/lib/audit'
 
 async function requireOwner(token: string | null) {
   const session = await getSession(token)
@@ -18,7 +19,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    if (!(await requireOwner(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const owner = await requireOwner(body.token)
+    if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const label = String(body.label ?? '').trim()
     const sectorId = String(body.sectorId ?? '').trim()
     const key = label.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 50)
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
     }).select('id,sector_id,column_key,label,kind,options,position').single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'roster_column_create', 'roster_column', String(data.id), { sectorId, label })
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'تعذر إضافة العمود' }, { status: 400 })
@@ -45,13 +48,15 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json()
-    if (!(await requireOwner(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const owner = await requireOwner(body.token)
+    if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { data, error } = await getServerSupabase().from('pd_roster_columns').update({
       label: String(body.label ?? '').trim(),
       kind: ['text', 'number', 'select'].includes(body.kind) ? body.kind : 'text',
       options: Array.isArray(body.options) ? body.options : [],
     }).eq('id', body.id).select('id,sector_id,column_key,label,kind,options,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'roster_column_update', 'roster_column', String(body.id), { label: data.label, kind: data.kind })
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'تعذر تعديل العمود' }, { status: 400 })
@@ -61,9 +66,11 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const body = await req.json()
-    if (!(await requireOwner(body.token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const owner = await requireOwner(body.token)
+    if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { error } = await getServerSupabase().from('pd_roster_columns').delete().eq('id', body.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'roster_column_delete', 'roster_column', String(body.id))
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'تعذر حذف العمود' }, { status: 400 })

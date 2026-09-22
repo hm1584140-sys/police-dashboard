@@ -9,6 +9,7 @@ import { TextCell } from '../editable-cells'
 import { radioTables, type RadioTableDef } from '@/lib/police-data'
 import { supabase } from '@/lib/supabase'
 import { useAdmin } from '@/lib/admin-context'
+import { logClientAction } from '@/lib/client-audit'
 
 type Row = { id: string; values: Record<string, string> }
 
@@ -19,7 +20,7 @@ function newRowValues(columns: RadioTableDef['columns']): Record<string, string>
 }
 
 function RadioTable({ def }: { def: RadioTableDef }) {
-  const { canEdit } = useAdmin()
+  const { canEdit, token } = useAdmin()
   const editable = canEdit('radio')
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,12 +67,14 @@ function RadioTable({ def }: { def: RadioTableDef }) {
     setRows((prev) => prev.map((row) =>
       row.id === tempId ? { id: data.id, values: data.values || {} } : row,
     ))
+    void logClientAction(token, 'radio_create', 'radio_row', String(data.id), { tableId: def.id })
   }
 
   async function removeRow(id: string) {
     if (!editable) return
     setRows((prev) => prev.filter((r) => r.id !== id))
-    await supabase.from('radio_rows').delete().eq('id', id)
+    const { error } = await supabase.from('radio_rows').delete().eq('id', id)
+    if (!error) void logClientAction(token, 'radio_delete', 'radio_row', id, { tableId: def.id })
   }
 
   async function updateCell(id: string, key: string, value: string) {
@@ -81,7 +84,8 @@ function RadioTable({ def }: { def: RadioTableDef }) {
     )
     const row = rows.find((r) => r.id === id)
     const newValues = { ...(row?.values ?? {}), [key]: value }
-    await supabase.from('radio_rows').update({ values: newValues }).eq('id', id)
+    const { error } = await supabase.from('radio_rows').update({ values: newValues }).eq('id', id)
+    if (!error) void logClientAction(token, 'radio_update', 'radio_row', id, { tableId: def.id, field: key })
   }
 
   return (

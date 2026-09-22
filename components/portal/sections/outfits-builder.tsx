@@ -8,6 +8,8 @@ import { outfitPieces } from '@/lib/police-data'
 import { useSector } from '@/lib/sector-context'
 import type { PageDefinition } from '@/lib/page-types'
 import { supabase } from '@/lib/supabase'
+import { useAdmin } from '@/lib/admin-context'
+import { logClientAction } from '@/lib/client-audit'
 
 type Gender = 'men' | 'women'
 // key: `${rank}|${gender}|${piece}|${field}`
@@ -21,6 +23,7 @@ function GenderTable({
   icon,
   store,
   setStore,
+  token,
 }: {
   rank: string
   gender: Gender
@@ -28,6 +31,7 @@ function GenderTable({
   icon: React.ReactNode
   store: OutfitStore
   setStore: React.Dispatch<React.SetStateAction<OutfitStore>>
+  token: string | null
 }) {
   function val(piece: string, field: 'decal' | 'tex') {
     return store[`${rank}|${gender}|${piece}|${field}`] ?? ''
@@ -42,7 +46,7 @@ function GenderTable({
     })
 
     // Save to Supabase (upsert: insert or update)
-    await supabase.from('outfits').upsert(
+    const { error } = await supabase.from('outfits').upsert(
       {
         rank_key: rank,
         gender,
@@ -52,6 +56,7 @@ function GenderTable({
       },
       { onConflict: 'rank_key,gender,piece,field' },
     )
+    if (!error) void logClientAction(token, 'outfit_update', 'outfit', key, { rank, gender, piece, field })
   }
 
   return (
@@ -116,6 +121,7 @@ function GenderTable({
 
 export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
   const { sectors } = useSector()
+  const { token } = useAdmin()
   const rankGroups = useMemo<SelectGroup[]>(
     () => sectors.map((sector) => ({
       label: `${sector.id} — ${sector.name}`,
@@ -198,6 +204,7 @@ export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
             icon={<User className="size-4 text-primary" />}
             store={store}
             setStore={setStore}
+            token={token}
           />
           <GenderTable
             rank={rank}
@@ -206,6 +213,7 @@ export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
             icon={<UserRound className="size-4 text-primary" />}
             store={store}
             setStore={setStore}
+            token={token}
           />
         </div>
       )}
