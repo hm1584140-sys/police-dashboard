@@ -27,6 +27,7 @@ export type ContentBlock =
   | { type: 'table'; title?: string; columns: string[]; rows: string[][] }
   | { type: 'stats'; items: Array<{ value: string; label: string; hint?: string }> }
   | { type: 'sops-copy'; values: Record<string, string> }
+  | { type: 'sops-section'; id: string; title: string; icon: string; content: string }
 
 export type PageDefinition = {
   id: string
