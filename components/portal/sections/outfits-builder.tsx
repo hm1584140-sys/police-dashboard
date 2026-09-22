@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 type Gender = 'men' | 'women'
 // key: `${rank}|${gender}|${piece}|${field}`
 type OutfitStore = Record<string, string>
+let outfitCache: OutfitStore | null = null
 
 function GenderTable({
   rank,
@@ -34,7 +35,11 @@ function GenderTable({
 
   async function set(piece: string, field: 'decal' | 'tex', v: string) {
     const key = `${rank}|${gender}|${piece}|${field}`
-    setStore((prev) => ({ ...prev, [key]: v }))
+    setStore((prev) => {
+      const next = { ...prev, [key]: v }
+      outfitCache = next
+      return next
+    })
 
     // Save to Supabase (upsert: insert or update)
     await supabase.from('outfits').upsert(
@@ -120,14 +125,14 @@ export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
   )
   const firstRank = rankGroups[0]?.options[0] ?? ''
   const [rank, setRank] = useState<string>(firstRank)
-  const [store, setStore] = useState<OutfitStore>({})
-  const [loading, setLoading] = useState(true)
+  const [store, setStore] = useState<OutfitStore>(() => outfitCache ?? {})
+  const [loading, setLoading] = useState(() => !outfitCache)
 
   // Load all outfit data from Supabase on mount.
   useEffect(() => {
     async function loadOutfits() {
-      setLoading(true)
-      const { data, error } = await supabase.from('outfits').select('*')
+      if (!outfitCache) setLoading(true)
+      const { data, error } = await supabase.from('outfits').select('rank_key,gender,piece,field,value')
 
       if (!error && data) {
         const loaded: OutfitStore = {}
@@ -135,6 +140,7 @@ export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
           const key = `${row.rank_key}|${row.gender}|${row.piece}|${row.field}`
           loaded[key] = row.value || ''
         }
+        outfitCache = loaded
         setStore(loaded)
       }
       setLoading(false)
