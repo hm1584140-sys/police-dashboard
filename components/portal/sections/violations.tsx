@@ -29,7 +29,7 @@ export function Violations({ page }: { page?: PageDefinition }) {
       setLoading(true)
       const { data, error } = await supabase
         .from('violations')
-        .select('*')
+        .select('id,degree,description,penalty,is_severe,created_at')
         .order('created_at', { ascending: true })
 
       if (!error && data) {
@@ -44,7 +44,7 @@ export function Violations({ page }: { page?: PageDefinition }) {
           const { data: inserted } = await supabase
             .from('violations')
             .insert(seeded)
-            .select()
+            .select('id,degree,description,penalty,is_severe')
           if (inserted) {
             setItems(
               inserted.map((row) => ({
@@ -74,25 +74,30 @@ export function Violations({ page }: { page?: PageDefinition }) {
   }, [])
 
   async function addViolation() {
+    if (!editable) return
     const nextDegree = String(items.length + 1)
+    const tempId = `temp-${crypto.randomUUID()}`
+    const optimistic: ViolationItem = { id: tempId, degree: nextDegree, desc: '', penalty: '', isSevere: false }
+    setItems((prev) => [...prev, optimistic])
+
     const { data, error } = await supabase
       .from('violations')
       .insert({ degree: nextDegree, description: '', penalty: '', is_severe: false })
-      .select()
+      .select('id,degree,description,penalty,is_severe')
       .single()
 
-    if (!error && data) {
-      setItems((prev) => [
-        ...prev,
-        {
-          id: data.id,
-          degree: data.degree,
-          desc: data.description,
-          penalty: data.penalty,
-          isSevere: data.is_severe,
-        },
-      ])
+    if (error || !data) {
+      setItems((prev) => prev.filter((item) => item.id !== tempId))
+      return
     }
+
+    setItems((prev) => prev.map((item) => item.id === tempId ? {
+      id: data.id,
+      degree: data.degree,
+      desc: data.description,
+      penalty: data.penalty,
+      isSevere: data.is_severe,
+    } : item))
   }
 
   async function removeViolation(id: string) {
@@ -164,10 +169,11 @@ export function Violations({ page }: { page?: PageDefinition }) {
                 >
                   <span className="font-mono text-[10px] uppercase">درجة</span>
                   {editable ? (
-                    <input
+                    <TextCell
                       value={v.degree}
-                      onChange={(e) => updateViolation(v.id, { degree: e.target.value })}
-                      className="w-10 bg-transparent text-center font-heading text-2xl font-black leading-none outline-none"
+                      onChange={(value) => updateViolation(v.id, { degree: value })}
+                      section="violations"
+                      className="w-12 border-0 bg-transparent px-0 text-center font-heading text-2xl font-black leading-none focus:bg-transparent focus:ring-0"
                     />
                   ) : (
                     <span className="font-heading text-2xl font-black leading-none">
