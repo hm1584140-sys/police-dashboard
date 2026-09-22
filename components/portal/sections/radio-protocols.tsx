@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Radio, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { PageDefinition } from '@/lib/page-types'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell } from '../editable-cells'
 import { radioTables, type RadioTableDef } from '@/lib/police-data'
@@ -189,13 +190,13 @@ function RadioTable({ def }: { def: RadioTableDef }) {
   )
 }
 
-export function RadioProtocols() {
+export function RadioProtocols({ page }: { page?: PageDefinition }) {
   return (
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Radio Protocols"
-        title="بروتوكولات اللاسلكي والأكواد"
-        desc="جداول قابلة للتعديل والكتابة الكاملة. تبدأ فارغة تماماً وجاهزة لتعبئتها بأكواد جهازك."
+        title={page?.title ?? 'بروتوكولات اللاسلكي والأكواد'}
+        desc={page?.description ?? 'جداول قابلة للتعديل والكتابة الكاملة. تبدأ فارغة تماماً وجاهزة لتعبئتها بأكواد جهازك.'}
         icon={<Radio className="size-6" />}
       />
       <div className="grid gap-6">
