@@ -10,7 +10,7 @@ async function requireOwner(token: string | null) {
 export async function GET(req: Request) {
   const sector = new URL(req.url).searchParams.get('sector')
   if (!sector) return NextResponse.json({ error: 'sector مطلوب' }, { status: 400 })
-  const { data, error } = await getServerSupabase().from('pd_roster_columns').select('*').eq('sector_id', sector).order('position', { ascending: true })
+  const { data, error } = await getServerSupabase().from('pd_roster_columns').select('id,sector_id,column_key,label,kind,options,position').eq('sector_id', sector).order('position', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       kind: ['text', 'number', 'select'].includes(body.kind) ? body.kind : 'text',
       options: Array.isArray(body.options) ? body.options : [],
       position: count ?? 0,
-    }).select('*').single()
+    }).select('id,sector_id,column_key,label,kind,options,position').single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json(data, { status: 201 })
@@ -50,7 +50,7 @@ export async function PATCH(req: Request) {
       label: String(body.label ?? '').trim(),
       kind: ['text', 'number', 'select'].includes(body.kind) ? body.kind : 'text',
       options: Array.isArray(body.options) ? body.options : [],
-    }).eq('id', body.id).select('*').single()
+    }).eq('id', body.id).select('id,sector_id,column_key,label,kind,options,position').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json(data)
   } catch {
