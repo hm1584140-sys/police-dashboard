@@ -1,0 +1,24 @@
+name: Temporary Performance Fix Validation
+
+on:
+  push:
+    branches:
+      - feature/sector-management
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SECRET_KEY: build-check-secret
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: build-check-anon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npx tsc --noEmit
+      - run: npm run build
