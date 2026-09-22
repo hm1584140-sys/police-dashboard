@@ -6,6 +6,7 @@ import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell, GroupedSelectCell, type SelectGroup } from '../editable-cells'
 import { outfitPieces } from '@/lib/police-data'
 import { useSector } from '@/lib/sector-context'
+import type { PageDefinition } from '@/lib/page-types'
 import { supabase } from '@/lib/supabase'
 
 type Gender = 'men' | 'women'
@@ -108,7 +109,7 @@ function GenderTable({
   )
 }
 
-export function OutfitsBuilder() {
+export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
   const { sectors } = useSector()
   const rankGroups = useMemo<SelectGroup[]>(
     () => sectors.map((sector) => ({
@@ -154,8 +155,8 @@ export function OutfitsBuilder() {
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Interactive Outfits"
-        title="دليل ملابس الرتب الذكي"
-        desc="اختر الرتبة لعرض لوحة ملابس مخصصة — جداول للرجال والنساء بخانات فارغة لإدخال أرقام الـ Decals والـ Textures لكل قطعة."
+        title={page?.title ?? 'دليل ملابس الرتب الذكي'}
+        desc={page?.description ?? 'اختر الرتبة لعرض لوحة ملابس مخصصة — جداول للرجال والنساء بخانات فارغة لإدخال أرقام الـ Decals والـ Textures لكل قطعة.'}
         icon={<Shirt className="size-6" />}
       />
 
