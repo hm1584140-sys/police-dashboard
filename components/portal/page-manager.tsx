@@ -249,10 +249,16 @@ function PageEditor({
           </div>
 
           {isSops ? (
-            <SopsCopyEditor
-              blocks={page.blocks}
-              onChange={(values) => update({ blocks: setSopsCopy(page.blocks, values), renderer: 'sops' })}
-            />
+            <>
+              <SopsCopyEditor
+                blocks={page.blocks}
+                onChange={(values) => update({ blocks: setSopsCopy(page.blocks, values), renderer: 'sops' })}
+              />
+              <SopsSectionsEditor
+                blocks={page.blocks}
+                onChange={(blocks) => update({ blocks, renderer: 'sops' })}
+              />
+            </>
           ) : canEditBlocks ? (
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
@@ -332,6 +338,152 @@ function SopsCopyEditor({
   )
 }
 
+function SopsSectionsEditor({
+  blocks,
+  onChange,
+}: {
+  blocks: ContentBlock[]
+  onChange: (blocks: ContentBlock[]) => void
+}) {
+  const sections = blocks.filter((block): block is Extract<ContentBlock, { type: 'sops-section' }> => block.type === 'sops-section')
+  const preserved = blocks.filter((block) => block.type !== 'sops-section')
+
+  function replaceSections(nextSections: typeof sections) {
+    onChange([...preserved, ...nextSections])
+  }
+
+  function addSection() {
+    const id = `custom-${Date.now()}`
+    replaceSections([
+      ...sections,
+      {
+        type: 'sops-section',
+        id,
+        title: 'قسم جديد',
+        icon: 'FileText',
+        content: 'اكتب محتوى القسم هنا...',
+      },
+    ])
+  }
+
+  return (
+    <div className="mt-5 rounded-xl border border-border bg-background/30 p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h5 className="font-heading text-sm font-bold text-foreground">أقسام كتيب البروتوكولات</h5>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            أضف قسمًا جديدًا مثل الأقسام الموجودة في القائمة الجانبية، واختر اسمه وأيقونته واكتب محتواه.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={addSection}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/25"
+        >
+          <Plus className="size-3.5" />
+          إضافة قسم جديد
+        </button>
+      </div>
+
+      <div className="grid gap-3">
+        {sections.map((section, index) => (
+          <div key={section.id} className="rounded-xl border border-border bg-background/40 p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] text-primary">قسم {index + 1}</span>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => {
+                    const next = [...sections]
+                    const item = next[index]
+                    next[index] = next[index - 1]
+                    next[index - 1] = item
+                    replaceSections(next)
+                  }}
+                  className="rounded border border-border p-1.5 disabled:opacity-30"
+                  title="تحريك للأعلى"
+                >
+                  <ArrowUp className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={index === sections.length - 1}
+                  onClick={() => {
+                    const next = [...sections]
+                    const item = next[index]
+                    next[index] = next[index + 1]
+                    next[index + 1] = item
+                    replaceSections(next)
+                  }}
+                  className="rounded border border-border p-1.5 disabled:opacity-30"
+                  title="تحريك للأسفل"
+                >
+                  <ArrowDown className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => replaceSections(sections.filter((_, i) => i !== index))}
+                  className="rounded border border-destructive/40 p-1.5 text-destructive"
+                  title="حذف القسم"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="اسم القسم">
+                <input
+                  value={section.title}
+                  onChange={(event) => replaceSections(sections.map((item, i) =>
+                    i === index ? { ...item, title: event.target.value } : item,
+                  ))}
+                  className="input-base"
+                  placeholder="مثال: بروتوكول المداهمات"
+                />
+              </Field>
+              <Field label="الأيقونة">
+                <select
+                  value={section.icon}
+                  onChange={(event) => replaceSections(sections.map((item, i) =>
+                    i === index ? { ...item, icon: event.target.value } : item,
+                  ))}
+                  className="input-base"
+                >
+                  {PAGE_ICON_OPTIONS.map((option) => (
+                    <option key={option.name} value={option.name}>{option.label}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="mt-3">
+              <Field label="محتوى القسم">
+                <BufferedTextarea
+                  value={section.content}
+                  rows={7}
+                  onCommit={(value) => replaceSections(sections.map((item, i) =>
+                    i === index ? { ...item, content: value } : item,
+                  ))}
+                  className="input-base resize-y"
+                  placeholder="اكتب قوانين أو بروتوكولات هذا القسم..."
+                />
+              </Field>
+            </div>
+          </div>
+        ))}
+
+        {!sections.length ? (
+          <div className="rounded-lg border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+            لا توجد أقسام مخصصة بعد. اضغط «إضافة قسم جديد».
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function BlockAdd({ onAdd }: { onAdd: (block: ContentBlock) => void }) {
   return (
     <select value="" onChange={(e) => {
@@ -374,7 +526,7 @@ function BlockEditor({
   onDelete: () => void
   onMove: (direction: number) => void
 }) {
-  if (block.type === 'sops-copy') return null
+  if (block.type === 'sops-copy' || block.type === 'sops-section') return null
 
   return (
     <div className="rounded-xl border border-border bg-background/30 p-4">
