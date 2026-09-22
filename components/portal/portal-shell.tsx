@@ -213,7 +213,7 @@ export function PortalShell() {
 
   const loadPages = useCallback(async () => {
     try {
-      const res = await fetch('/api/pages')
+      const res = await fetch('/api/pages', { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       if (!Array.isArray(data) || !data.length) return
