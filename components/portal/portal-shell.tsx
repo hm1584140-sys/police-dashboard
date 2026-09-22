@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { BookOpen, Lock, LogIn, LogOut, MessageSquare, Pencil, Settings, Shield, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSector } from '@/lib/sector-context'
@@ -239,7 +239,7 @@ export function PortalShell() {
   const theme = useMemo(() => ({ vars: currentSector.vars }), [currentSector.vars])
   const activePage = useMemo(() => pages.find((page) => page.slug === active) ?? pages[0] ?? BUILTIN_PAGES[0], [pages, active])
 
-  function withExtraContent(page: PageDefinition, content: React.ReactNode) {
+  function withExtraContent(page: PageDefinition, content: ReactNode) {
     const extra = (page.blocks ?? []).filter((block) => block.type !== 'sops-copy')
     return (
       <div className="flex flex-col gap-6">
@@ -310,7 +310,7 @@ export function PortalShell() {
           <PageManager
             token={token}
             initialPage={activePage}
-            onSaved={() => void loadPages()}
+            onSaved={() => { void loadPages(); setQuickEditorOpen(false) }}
             onClose={() => setQuickEditorOpen(false)}
           />
         ) : null}
