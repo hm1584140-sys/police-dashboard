@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createBanAppeal, getBanAppeals, getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { writeAuditLog } from '@/lib/audit'
 
 async function requireOwner(token: string | null) {
   const session = await getSession(token)
@@ -26,7 +27,8 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const { token, id, status, ownerResponse } = await req.json()
-    if (!(await requireOwner(token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const owner = await requireOwner(token)
+    if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (!['pending', 'approved', 'rejected'].includes(status)) return NextResponse.json({ error: 'حالة غير صحيحة' }, { status: 400 })
 
     const db = getServerSupabase()
@@ -50,6 +52,7 @@ export async function PATCH(req: Request) {
       }).eq('username', appeal.username)
     }
 
+    await writeAuditLog(owner, 'appeal_review', 'ban_appeal', String(id), { status, username: appeal.username })
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'تعذر تحديث الطلب' }, { status: 400 })
