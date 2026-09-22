@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/utils'
 import { NeonCard, Pill, StatCard, InfoBlock } from '@/components/portal/primitives'
 import { pursuitCapacity, robberyCapacity } from '@/lib/police-data'
-import type { PageDefinition } from '@/lib/page-types'
+import { PAGE_ICON_MAP, type ContentBlock, type PageDefinition } from '@/lib/page-types'
 import { getSopsCopy } from '@/lib/sops-copy'
 
 const SUB = [
@@ -31,8 +31,8 @@ const SUB = [
   { id: 'failsafe', label: 'مفشلات الهروب الآمن', icon: ShieldOff },
 ] as const
 
-type SubId = (typeof SUB)[number]['id']
 type Copy = Record<string, string>
+type CustomSection = Extract<ContentBlock, { type: 'sops-section' }>
 
 function lines(value: string) {
   return value.split('\n').map((item) => item.trim()).filter(Boolean)
@@ -44,8 +44,24 @@ function Extra({ text }: { text?: string }) {
 }
 
 export function SopsPortal({ page }: { page?: PageDefinition }) {
-  const [sub, setSub] = useState<SubId>('general')
+  const [sub, setSub] = useState<string>('general')
   const copy = useMemo(() => getSopsCopy(page?.blocks), [page?.blocks])
+  const customSections = useMemo(
+    () => (page?.blocks ?? []).filter((block): block is CustomSection => block.type === 'sops-section'),
+    [page?.blocks],
+  )
+  const navigation = useMemo(
+    () => [
+      ...SUB.map((item) => ({ ...item, custom: false as const })),
+      ...customSections.map((item) => ({
+        id: item.id,
+        label: item.title,
+        icon: PAGE_ICON_MAP[item.icon] ?? ScrollText,
+        custom: true as const,
+      })),
+    ],
+    [customSections],
+  )
 
   return (
     <div className="flex flex-col gap-8">
@@ -67,7 +83,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard value="3" label="قطاعات" hint="SASP • LSPD • BCSO" />
-        <StatCard value="8" label="أقسام" hint="بروتوكولات شاملة" />
+        <StatCard value={String(8 + customSections.length)} label="أقسام" hint="بروتوكولات شاملة" />
         <StatCard value="إلزامي" label="على جميع الرتب" hint="وكافة التفرعات" />
       </div>
 
@@ -75,7 +91,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         <NeonCard className="h-fit p-2 lg:sticky lg:top-36">
           <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">أقسام البروتوكولات</p>
           <div className="flex flex-col gap-1">
-            {SUB.map((s) => {
+            {navigation.map((s) => {
               const Icon = s.icon
               const isActive = sub === s.id
               return (
@@ -99,9 +115,23 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
           {sub === 'vehiclefire' && <VehicleFire copy={copy} />}
           {sub === 'capacity' && <RobberyCapacity />}
           {sub === 'failsafe' && <FailSafe copy={copy} />}
+          {customSections.map((section) =>
+            sub === section.id ? <CustomSopsSection key={section.id} section={section} /> : null,
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+function CustomSopsSection({ section }: { section: CustomSection }) {
+  return (
+    <NeonCard className="p-5">
+      <h3 className="font-heading text-lg font-extrabold text-primary">{section.title}</h3>
+      <div className="mt-3 whitespace-pre-wrap text-sm leading-8 text-foreground">
+        {section.content || 'هذا القسم فارغ حالياً.'}
+      </div>
+    </NeonCard>
   )
 }
 
