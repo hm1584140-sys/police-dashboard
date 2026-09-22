@@ -111,8 +111,7 @@ export async function POST(request: NextRequest) {
 
       if (error) return json({ error: error.message }, 500)
       await writeAuditLog(owner, 'sector_update', 'sector', String(template.id), { action: 'show_template' })
-      await writeAuditLog(owner, 'sector_update', 'sector', requestedId, { originalId, changedId: requestedId !== originalId })
-    return json({ sector: dbToSector(data) })
+      return json({ sector: dbToSector(data) })
     }
 
     const rawId = String(body.id ?? '').trim()
@@ -223,6 +222,7 @@ export async function PATCH(request: NextRequest) {
       ])
     }
 
+    await writeAuditLog(owner, 'sector_update', 'sector', requestedId, { originalId, changedId: requestedId !== originalId })
     return json({ sector: dbToSector(data) })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'تعذر تعديل القطاع' }, 500)
