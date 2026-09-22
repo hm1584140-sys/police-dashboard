@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { writeAuditLog } from '@/lib/audit'
 
 async function getOwner(token: string | null) {
   const session = await getSession(token)
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
     }).select('id,audience,recipient_username,title,body,created_by,created_at').single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'message_send', 'message', data.id, { audience, recipientUsername: data.recipient_username, title: data.title })
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'تعذر إرسال الرسالة' }, { status: 400 })
@@ -60,9 +62,11 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { token, id } = await req.json()
-    if (!(await getOwner(token))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const owner = await getOwner(token)
+    if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { error } = await getServerSupabase().from('pd_messages').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'message_delete', 'message', String(id))
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'تعذر حذف الرسالة' }, { status: 400 })
