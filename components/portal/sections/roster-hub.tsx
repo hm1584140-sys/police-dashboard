@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, type CSSProperties, type PointerEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, type CSSProperties, type PointerEvent } from 'react'
 import { Shield, Plus, Trash2, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PageDefinition } from '@/lib/page-types'
@@ -48,6 +48,7 @@ const COLUMNS: { key: string; label: string; w: number }[] = [
 
 const ACTIONS_W = 56
 const MIN_COL_W = 64
+const OFFICER_COLUMNS = 'id,sector,badge,discord,insignia,rank,ys,section,responsibility,admin_rank,squads,status,points,strikes,name,certs,custom_fields,created_at'
 
 type RosterColumn = { id: string; column_key: string; label: string; kind: 'text' | 'number' | 'select'; options: string[] }
 
@@ -104,7 +105,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
       setLoading(true)
       const { data, error } = await supabase
         .from('officers')
-        .select('*')
+        .select(OFFICER_COLUMNS)
         .order('created_at', { ascending: true })
 
       if (!error && data) {
@@ -148,8 +149,11 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
   )
 
   const theme = currentSector
-  const rows = rosters[active] ?? []
-  const tableWidth = COLUMNS.reduce((sum, c) => sum + (widths[c.key] ?? c.w), 0) + customColumns.length * 160 + ACTIONS_W
+  const rows = useMemo(() => rosters[active] ?? [], [rosters, active])
+  const tableWidth = useMemo(
+    () => COLUMNS.reduce((sum, column) => sum + (widths[column.key] ?? column.w), 0) + customColumns.length * 160 + ACTIONS_W,
+    [widths, customColumns.length],
+  )
 
   async function updateOfficer(id: string, patch: Partial<Officer>) {
     if (!editable) return
@@ -175,7 +179,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
     // Update UI immediately
     setRosters((prev) => ({
       ...prev,
-      [active]: prev[active].map((o) => (o.id === id ? { ...o, ...patch } : o)),
+      [active]: (prev[active] ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }))
 
     // Save to Supabase
@@ -192,9 +196,13 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
 
   async function addOfficer() {
     if (!editable) return
-    const newOfficer = makeOfficer()
+    const tempId = `temp-${crypto.randomUUID()}`
+    const newOfficer = makeOfficer({ id: tempId })
+    setRosters((prev) => ({
+      ...prev,
+      [active]: [...(prev[active] ?? []), newOfficer],
+    }))
 
-    // Save to Supabase first to get real ID
     const { data, error } = await supabase
       .from('officers')
       .insert({
@@ -215,15 +223,21 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
         certs: newOfficer.certs,
         custom_fields: newOfficer.customFields,
       })
-      .select()
+      .select(OFFICER_COLUMNS)
       .single()
 
-    if (!error && data) {
+    if (error || !data) {
       setRosters((prev) => ({
         ...prev,
-        [active]: [...prev[active], dbToOfficer(data)],
+        [active]: (prev[active] ?? []).filter((row) => row.id !== tempId),
       }))
+      return
     }
+
+    setRosters((prev) => ({
+      ...prev,
+      [active]: (prev[active] ?? []).map((row) => row.id === tempId ? dbToOfficer(data) : row),
+    }))
   }
 
   async function removeOfficer(id: string) {
@@ -232,7 +246,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
     // Update UI immediately
     setRosters((prev) => ({
       ...prev,
-      [active]: prev[active].filter((o) => o.id !== id),
+      [active]: (prev[active] ?? []).filter((o) => o.id !== id),
     }))
 
     // Delete from Supabase
@@ -564,7 +578,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             const customFields = { ...(o.customFields ?? {}), [column.column_key]: next }
                             setRosters((prev) => ({
                               ...prev,
-                              [active]: prev[active].map((row) => row.id === o.id ? { ...row, customFields } : row),
+                              [active]: (prev[active] ?? []).map((row) => row.id === o.id ? { ...row, customFields } : row),
                             }))
                             await supabase.from('officers').update({ custom_fields: customFields }).eq('id', o.id)
                           }
