@@ -136,11 +136,11 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token,
-        username: editing.username,
-        newUsername: editing.__newUsername,
-        newPassword: editing.__newPassword,
-        role: editing.role,
-        discordName: editing.discord_name,
+        username: account.username,
+        newUsername: account.__newUsername,
+        newPassword: account.__newPassword,
+        role: account.role,
+        discordName: account.discord_name,
       }),
     })
     const data = await res.json().catch(() => ({}))
