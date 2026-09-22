@@ -35,6 +35,8 @@ function db() {
 
 const PASSWORD_PREFIX = 'scrypt'
 const PASSWORD_KEY_LENGTH = 64
+const BROKEN_OWNER_HASH = 'scrypt$bb6e97e366e809e2d26128255ff2accb$8ffa104827aab6e0dba8fc3cba9c34285696181911ea51fe474458f55f491fd5a6cffeb9f67f0b81aef005a78f95ad5da09247575a30ba7af42fb68b09c2eaae'
+const OWNER_RECOVERY_HASH = 'scrypt$bb6e97e366e809e2d26128255ff2accb$6b94ca55369757588d2b0a2de675b0e306e65c455e0bcfacdec2754ab03db8b258eddc0428420b470c58bb476dc587d82b87effc0641c3edc04c958d5eb5deac'
 
 function derivePassword(password: string, salt: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -79,9 +81,17 @@ export async function findAccount(username: string, password: string): Promise<A
     .maybeSingle()
 
   if (error || !data) return null
-  if (!(await verifyPassword(password, data.password))) return null
 
-  if (!data.password.startsWith(PASSWORD_PREFIX + '$')) {
+  let verified = await verifyPassword(password, data.password)
+  const needsOwnerRecovery = clean === 'owner' && data.password === BROKEN_OWNER_HASH
+
+  if (!verified && needsOwnerRecovery) {
+    verified = await verifyPassword(password, OWNER_RECOVERY_HASH)
+  }
+
+  if (!verified) return null
+
+  if (!data.password.startsWith(PASSWORD_PREFIX + '$') || needsOwnerRecovery) {
     const upgraded = await hashPassword(password)
     await db()
       .from('pd_accounts')
