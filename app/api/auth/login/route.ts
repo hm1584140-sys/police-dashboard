@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         error: 'هذا الحساب مبنّد',
         banned: true,
         username: account.username,
-        discordName: account.discord_name,
+        discordName: cleanDiscord,
         reason: account.ban_reason || 'لم يتم ذكر سبب.',
       }, { status: 403 })
     }
