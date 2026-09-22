@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { getSession } from '@/lib/auth'
 import type { PageRenderer } from '@/lib/page-types'
+import { writeAuditLog } from '@/lib/audit'
 
 const PAGE_COLUMNS = 'id,slug,title,description,icon,page_type,renderer,is_visible,is_system,sort_order,sector_id,blocks,created_at,updated_at'
 
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     }).select(PAGE_COLUMNS).single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'page_create', 'page', data.slug, { title: data.title, renderer: data.renderer })
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
@@ -86,6 +88,7 @@ export async function PATCH(req: Request) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'page_update', 'page', data.slug, { title: data.title, renderer: data.renderer })
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
@@ -105,6 +108,7 @@ export async function DELETE(req: Request) {
 
     const { error } = await db.from('pd_pages').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeAuditLog(owner, 'page_delete', 'page', String(id))
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
