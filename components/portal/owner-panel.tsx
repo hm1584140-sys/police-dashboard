@@ -447,10 +447,11 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
   const [loading,setLoading]=useState(false)
 
   async function loadSectors(){
-    const res=await fetch('/api/sectors?admin=1&token='+encodeURIComponent(token))
+    const res=await fetch('/api/sectors?mode=admin&token='+encodeURIComponent(token))
     if(!res.ok)return
-    const data=await res.json()
-    setSectors(data as Array<{id:string;name:string;arabic:string}>)
+    const payload=await res.json()
+    const data = Array.isArray(payload.sectors) ? payload.sectors as Array<{id:string;name:string;arabic:string}> : []
+    setSectors(data)
     if(!sector) setSector(data[0]?.id ?? '')
   }
   async function loadColumns(id=sector){
