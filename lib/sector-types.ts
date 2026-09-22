@@ -101,7 +101,7 @@ export const SECTOR_THEME_PRESETS: Record<string, SectorThemePreset> = {
   }, 'Deep Violet • Neon', 'بنفسجي'),
 }
 
-export const SYSTEM_SECTOR_IDS = ['LSPD', 'BCSO', 'SASP']
+export const SYSTEM_SECTOR_IDS = ['LSPD', 'BCSO', 'SASP'] as const
 
 const SYSTEM_DESCRIPTIONS: Record<string, string> = {
   LSPD: 'قطاع شرطة لوس سانتوس ومسؤوليات المدينة والمناطق الحضرية.',
@@ -111,7 +111,7 @@ const SYSTEM_DESCRIPTIONS: Record<string, string> = {
 
 export function getBuiltinSectors(): SectorDefinition[] {
   return SYSTEM_SECTOR_IDS.map((id) => {
-    const t = sectorThemes[id]
+    const t = sectorThemes[id as keyof typeof sectorThemes]
     return {
       id,
       name: t.name,
@@ -119,7 +119,7 @@ export function getBuiltinSectors(): SectorDefinition[] {
       tagline: t.tagline,
       description: SYSTEM_DESCRIPTIONS[id] ?? '',
       vars: t.vars,
-      ranks: sectorRanks[id],
+      ranks: sectorRanks[id as keyof typeof sectorRanks],
       is_visible: true,
       is_template: false,
     }
