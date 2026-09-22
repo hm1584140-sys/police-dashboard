@@ -155,6 +155,7 @@ function RadioTable({ def }: { def: RadioTableDef }) {
                           onChange={(v) => updateCell(row.id, col.key, v)}
                           placeholder={ci === 0 ? 'Code…' : '—'}
                           className={ci === 0 ? 'font-mono' : undefined}
+                          section="radio"
                         />
                       ) : (
                         <span
