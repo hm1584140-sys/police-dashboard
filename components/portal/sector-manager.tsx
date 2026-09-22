@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Check, Eye, EyeOff, Pencil, Plus, RefreshCw, Save, Shield, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NeonCard, Pill } from './primitives'
@@ -185,8 +185,8 @@ export function SectorManager({ token, onClose }: Props) {
     await refreshAfterChange()
   }
 
-  const visible = sectors.filter((sector) => sector.is_visible)
-  const hidden = sectors.filter((sector) => !sector.is_visible)
+  const visible = useMemo(() => sectors.filter((sector) => sector.is_visible), [sectors])
+  const hidden = useMemo(() => sectors.filter((sector) => !sector.is_visible), [sectors])
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-3 md:p-6" onClick={onClose}>
