@@ -49,7 +49,7 @@ export function PageManager({
   async function load() {
     setLoading(true)
     try {
-      const res = await fetch('/api/pages?token=' + encodeURIComponent(token))
+      const res = await fetch('/api/pages?token=' + encodeURIComponent(token), { cache: 'no-store' })
       if (!res.ok) throw new Error()
       const data = await res.json()
       const normalized = (data as PageDefinition[]).map((item) =>
