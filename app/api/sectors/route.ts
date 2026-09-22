@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { SECTOR_THEME_PRESETS, getBuiltinSectors } from '@/lib/sector-types'
+import { writeAuditLog } from '@/lib/audit'
 
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, { status })
@@ -109,7 +110,9 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (error) return json({ error: error.message }, 500)
-      return json({ sector: dbToSector(data) })
+      await writeAuditLog(owner, 'sector_update', 'sector', String(template.id), { action: 'show_template' })
+      await writeAuditLog(owner, 'sector_update', 'sector', requestedId, { originalId, changedId: requestedId !== originalId })
+    return json({ sector: dbToSector(data) })
     }
 
     const rawId = String(body.id ?? '').trim()
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) return json({ error: error.message }, 500)
+    await writeAuditLog(owner, 'sector_create', 'sector', String(data.id), { name: data.name })
     return json({ sector: dbToSector(data) }, 201)
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'تعذر إنشاء القطاع' }, 500)
@@ -242,6 +246,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', String(body.id))
 
     if (error) return json({ error: error.message }, 500)
+    await writeAuditLog(owner, 'sector_delete', 'sector', String(body.id))
     return json({ ok: true })
   } catch {
     return json({ error: 'تعذر حذف القطاع' }, 500)
