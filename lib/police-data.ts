@@ -542,6 +542,7 @@ export type Officer = {
   strikes: string
   name: string
   certs: Record<CertKey, boolean>
+  customFields: Record<string, string>
 }
 
 export function emptyCerts(): Record<CertKey, boolean> {
@@ -565,6 +566,7 @@ export function makeOfficer(partial?: Partial<Officer>): Officer {
     strikes: '0',
     name: '',
     certs: emptyCerts(),
+    customFields: {},
     ...partial,
   }
 }

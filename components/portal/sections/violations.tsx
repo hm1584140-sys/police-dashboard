@@ -8,6 +8,7 @@ import { TextCell } from '@/components/portal/editable-cells'
 import { violations as defaultViolations } from '@/lib/police-data'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
+import type { PageDefinition } from '@/lib/page-types'
 
 type ViolationItem = {
   id: string
@@ -17,7 +18,7 @@ type ViolationItem = {
   isSevere: boolean
 }
 
-export function Violations() {
+export function Violations({ page }: { page?: PageDefinition }) {
   const { canEdit } = useAdmin()
   const editable = canEdit('violations')
   const [items, setItems] = useState<ViolationItem[]>([])
@@ -28,7 +29,7 @@ export function Violations() {
       setLoading(true)
       const { data, error } = await supabase
         .from('violations')
-        .select('*')
+        .select('id,degree,description,penalty,is_severe,created_at')
         .order('created_at', { ascending: true })
 
       if (!error && data) {
@@ -43,7 +44,7 @@ export function Violations() {
           const { data: inserted } = await supabase
             .from('violations')
             .insert(seeded)
-            .select()
+            .select('id,degree,description,penalty,is_severe')
           if (inserted) {
             setItems(
               inserted.map((row) => ({
@@ -73,25 +74,30 @@ export function Violations() {
   }, [])
 
   async function addViolation() {
+    if (!editable) return
     const nextDegree = String(items.length + 1)
+    const tempId = `temp-${crypto.randomUUID()}`
+    const optimistic: ViolationItem = { id: tempId, degree: nextDegree, desc: '', penalty: '', isSevere: false }
+    setItems((prev) => [...prev, optimistic])
+
     const { data, error } = await supabase
       .from('violations')
       .insert({ degree: nextDegree, description: '', penalty: '', is_severe: false })
-      .select()
+      .select('id,degree,description,penalty,is_severe')
       .single()
 
-    if (!error && data) {
-      setItems((prev) => [
-        ...prev,
-        {
-          id: data.id,
-          degree: data.degree,
-          desc: data.description,
-          penalty: data.penalty,
-          isSevere: data.is_severe,
-        },
-      ])
+    if (error || !data) {
+      setItems((prev) => prev.filter((item) => item.id !== tempId))
+      return
     }
+
+    setItems((prev) => prev.map((item) => item.id === tempId ? {
+      id: data.id,
+      degree: data.degree,
+      desc: data.description,
+      penalty: data.penalty,
+      isSevere: data.is_severe,
+    } : item))
   }
 
   async function removeViolation(id: string) {
@@ -113,8 +119,8 @@ export function Violations() {
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Violations"
-        title="المخالفات المرورية والدليل الجنائي"
-        desc="دليل تفاعلي لتعريف درجات التهم والمخالفات لتسهيل عمل الأفراد في الميدان."
+        title={page?.title ?? 'المخالفات المرورية والدليل الجنائي'}
+        desc={page?.description ?? 'دليل تفاعلي لتعريف درجات التهم والمخالفات لتسهيل عمل الأفراد في الميدان.'}
         icon={<TrafficCone className="size-6" />}
       />
 
@@ -163,10 +169,11 @@ export function Violations() {
                 >
                   <span className="font-mono text-[10px] uppercase">درجة</span>
                   {editable ? (
-                    <input
+                    <TextCell
                       value={v.degree}
-                      onChange={(e) => updateViolation(v.id, { degree: e.target.value })}
-                      className="w-10 bg-transparent text-center font-heading text-2xl font-black leading-none outline-none"
+                      onChange={(value) => updateViolation(v.id, { degree: value })}
+                      section="violations"
+                      className="w-12 border-0 bg-transparent px-0 text-center font-heading text-2xl font-black leading-none focus:bg-transparent focus:ring-0"
                     />
                   ) : (
                     <span className="font-heading text-2xl font-black leading-none">
@@ -181,6 +188,7 @@ export function Violations() {
                       onChange={(val) => updateViolation(v.id, { desc: val })}
                       placeholder="وصف المخالفة..."
                       className="font-heading text-base font-bold"
+                      section="violations"
                     />
                   ) : (
                     <p className="font-heading text-base font-bold text-foreground text-balance">
@@ -193,6 +201,7 @@ export function Violations() {
                         value={v.penalty}
                         onChange={(val) => updateViolation(v.id, { penalty: val })}
                         placeholder="العقوبة..."
+                        section="violations"
                       />
                       <button
                         type="button"

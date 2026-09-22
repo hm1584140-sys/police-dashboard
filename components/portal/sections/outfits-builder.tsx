@@ -6,11 +6,13 @@ import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell, GroupedSelectCell, type SelectGroup } from '../editable-cells'
 import { outfitPieces } from '@/lib/police-data'
 import { useSector } from '@/lib/sector-context'
+import type { PageDefinition } from '@/lib/page-types'
 import { supabase } from '@/lib/supabase'
 
 type Gender = 'men' | 'women'
 // key: `${rank}|${gender}|${piece}|${field}`
 type OutfitStore = Record<string, string>
+let outfitCache: OutfitStore | null = null
 
 function GenderTable({
   rank,
@@ -33,7 +35,11 @@ function GenderTable({
 
   async function set(piece: string, field: 'decal' | 'tex', v: string) {
     const key = `${rank}|${gender}|${piece}|${field}`
-    setStore((prev) => ({ ...prev, [key]: v }))
+    setStore((prev) => {
+      const next = { ...prev, [key]: v }
+      outfitCache = next
+      return next
+    })
 
     // Save to Supabase (upsert: insert or update)
     await supabase.from('outfits').upsert(
@@ -108,7 +114,7 @@ function GenderTable({
   )
 }
 
-export function OutfitsBuilder() {
+export function OutfitsBuilder({ page }: { page?: PageDefinition }) {
   const { sectors } = useSector()
   const rankGroups = useMemo<SelectGroup[]>(
     () => sectors.map((sector) => ({
@@ -119,14 +125,14 @@ export function OutfitsBuilder() {
   )
   const firstRank = rankGroups[0]?.options[0] ?? ''
   const [rank, setRank] = useState<string>(firstRank)
-  const [store, setStore] = useState<OutfitStore>({})
-  const [loading, setLoading] = useState(true)
+  const [store, setStore] = useState<OutfitStore>(() => outfitCache ?? {})
+  const [loading, setLoading] = useState(() => !outfitCache)
 
   // Load all outfit data from Supabase on mount.
   useEffect(() => {
     async function loadOutfits() {
-      setLoading(true)
-      const { data, error } = await supabase.from('outfits').select('*')
+      if (!outfitCache) setLoading(true)
+      const { data, error } = await supabase.from('outfits').select('rank_key,gender,piece,field,value')
 
       if (!error && data) {
         const loaded: OutfitStore = {}
@@ -134,6 +140,7 @@ export function OutfitsBuilder() {
           const key = `${row.rank_key}|${row.gender}|${row.piece}|${row.field}`
           loaded[key] = row.value || ''
         }
+        outfitCache = loaded
         setStore(loaded)
       }
       setLoading(false)
@@ -154,8 +161,8 @@ export function OutfitsBuilder() {
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Interactive Outfits"
-        title="دليل ملابس الرتب الذكي"
-        desc="اختر الرتبة لعرض لوحة ملابس مخصصة — جداول للرجال والنساء بخانات فارغة لإدخال أرقام الـ Decals والـ Textures لكل قطعة."
+        title={page?.title ?? 'دليل ملابس الرتب الذكي'}
+        desc={page?.description ?? 'اختر الرتبة لعرض لوحة ملابس مخصصة — جداول للرجال والنساء بخانات فارغة لإدخال أرقام الـ Decals والـ Textures لكل قطعة.'}
         icon={<Shirt className="size-6" />}
       />
 

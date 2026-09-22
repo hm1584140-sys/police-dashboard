@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Radio, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { PageDefinition } from '@/lib/page-types'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell } from '../editable-cells'
 import { radioTables, type RadioTableDef } from '@/lib/police-data'
@@ -28,7 +29,7 @@ function RadioTable({ def }: { def: RadioTableDef }) {
       setLoading(true)
       const { data, error } = await supabase
         .from('radio_rows')
-        .select('*')
+        .select('id,values,position')
         .eq('table_id', def.id)
         .order('position', { ascending: true })
 
@@ -48,15 +49,23 @@ function RadioTable({ def }: { def: RadioTableDef }) {
   async function addRow() {
     if (!editable) return
     const values = newRowValues(def.columns)
+    const tempId = `temp-${crypto.randomUUID()}`
+    setRows((prev) => [...prev, { id: tempId, values }])
+
     const { data, error } = await supabase
       .from('radio_rows')
       .insert({ table_id: def.id, values, position: rows.length })
-      .select()
+      .select('id,values')
       .single()
 
-    if (!error && data) {
-      setRows((prev) => [...prev, { id: data.id, values: data.values || {} }])
+    if (error || !data) {
+      setRows((prev) => prev.filter((row) => row.id !== tempId))
+      return
     }
+
+    setRows((prev) => prev.map((row) =>
+      row.id === tempId ? { id: data.id, values: data.values || {} } : row,
+    ))
   }
 
   async function removeRow(id: string) {
@@ -154,6 +163,7 @@ function RadioTable({ def }: { def: RadioTableDef }) {
                           onChange={(v) => updateCell(row.id, col.key, v)}
                           placeholder={ci === 0 ? 'Code…' : '—'}
                           className={ci === 0 ? 'font-mono' : undefined}
+                          section="radio"
                         />
                       ) : (
                         <span
@@ -189,13 +199,13 @@ function RadioTable({ def }: { def: RadioTableDef }) {
   )
 }
 
-export function RadioProtocols() {
+export function RadioProtocols({ page }: { page?: PageDefinition }) {
   return (
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Radio Protocols"
-        title="بروتوكولات اللاسلكي والأكواد"
-        desc="جداول قابلة للتعديل والكتابة الكاملة. تبدأ فارغة تماماً وجاهزة لتعبئتها بأكواد جهازك."
+        title={page?.title ?? 'بروتوكولات اللاسلكي والأكواد'}
+        desc={page?.description ?? 'جداول قابلة للتعديل والكتابة الكاملة. تبدأ فارغة تماماً وجاهزة لتعبئتها بأكواد جهازك.'}
         icon={<Radio className="size-6" />}
       />
       <div className="grid gap-6">

@@ -4,10 +4,10 @@ import { getSession } from '@/lib/auth'
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const token = searchParams.get('token')
-    const session = await getSession(token)
+    const session = await getSession(searchParams.get('token'))
     if (!session) return NextResponse.json({ role: 'visitor', username: null })
-    return NextResponse.json({ role: session.role, username: session.username })
+    if (session.is_banned) return NextResponse.json({ role: 'visitor', username: null, banned: true, reason: session.ban_reason ?? '' })
+    return NextResponse.json({ role: session.role, username: session.username, discordName: session.discord_name })
   } catch {
     return NextResponse.json({ role: 'visitor', username: null })
   }

@@ -17,7 +17,7 @@ type AdminContextValue = {
   isCommander: boolean
   isVisitor: boolean
   loading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string) => Promise<{ ok: boolean; banned?: boolean; reason?: string; discordName?: string }>
   logout: () => void
   canEdit: (section: Section) => boolean
 }
@@ -73,15 +73,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user, password: pass }),
       })
-      if (!res.ok) return false
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return { ok: false, banned: Boolean(data.banned), reason: data.reason, discordName: data.discordName }
+      }
       setRole(data.role)
       setUsername(data.username)
       setToken(data.token)
       localStorage.setItem(TOKEN_KEY, data.token)
-      return true
+      return { ok: true, discordName: data.discordName }
     } catch {
-      return false
+      return { ok: false }
     }
   }
 

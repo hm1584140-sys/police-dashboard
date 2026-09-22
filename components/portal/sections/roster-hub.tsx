@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect, type CSSProperties, type PointerEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, type CSSProperties, type PointerEvent } from 'react'
 import { Shield, Plus, Trash2, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { PageDefinition } from '@/lib/page-types'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
 import { TextCell, SelectCell } from '../editable-cells'
 import { ServiceStripeIcon } from '../service-stripe-icon'
@@ -47,6 +48,9 @@ const COLUMNS: { key: string; label: string; w: number }[] = [
 
 const ACTIONS_W = 56
 const MIN_COL_W = 64
+const OFFICER_COLUMNS = 'id,sector,badge,discord,insignia,rank,ys,section,responsibility,admin_rank,squads,status,points,strikes,name,certs,custom_fields,created_at'
+
+type RosterColumn = { id: string; column_key: string; label: string; kind: 'text' | 'number' | 'select'; options: string[] }
 
 const DEFAULT_WIDTHS: Record<string, number> = COLUMNS.reduce(
   (acc, c) => ({ ...acc, [c.key]: c.w }),
@@ -70,24 +74,46 @@ function dbToOfficer(row: Record<string, unknown>): Officer {
     strikes: (row.strikes as string) || '0',
     name: (row.name as string) || '',
     certs: (row.certs as Record<CertKey, boolean>) || emptyCerts(),
+    customFields: (row.custom_fields as Record<string, string>) || {},
   }
 }
 
-export function RosterHub() {
+export function RosterHub({ page }: { page?: PageDefinition }) {
   const { sector: active, setSector: setActive, sectors, currentSector } = useSector()
   const { canEdit } = useAdmin()
   const editable = canEdit('roster')
   const [rosters, setRosters] = useState<Record<string, Officer[]>>({})
   const [loading, setLoading] = useState(true)
   const [widths, setWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS)
+  const [customColumns, setCustomColumns] = useState<RosterColumn[]>([])
 
   // Load all officers from Supabase on mount
+  useEffect(() => {
+    async function loadColumns() {
+      try {
+        const res = await fetch('/api/roster-columns?sector=' + encodeURIComponent(active))
+        if (res.ok) setCustomColumns(await res.json())
+      } catch {
+        setCustomColumns([])
+      }
+    }
+
+    const handleColumnsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ sector?: string }>).detail
+      if (!detail?.sector || detail.sector === active) void loadColumns()
+    }
+
+    void loadColumns()
+    window.addEventListener('pd:roster-columns-changed', handleColumnsChanged)
+    return () => window.removeEventListener('pd:roster-columns-changed', handleColumnsChanged)
+  }, [active])
+
   useEffect(() => {
     async function loadOfficers() {
       setLoading(true)
       const { data, error } = await supabase
         .from('officers')
-        .select('*')
+        .select(OFFICER_COLUMNS)
         .order('created_at', { ascending: true })
 
       if (!error && data) {
@@ -131,8 +157,11 @@ export function RosterHub() {
   )
 
   const theme = currentSector
-  const rows = rosters[active] ?? []
-  const tableWidth = COLUMNS.reduce((sum, c) => sum + (widths[c.key] ?? c.w), 0) + ACTIONS_W
+  const rows = useMemo(() => rosters[active] ?? [], [rosters, active])
+  const tableWidth = useMemo(
+    () => COLUMNS.reduce((sum, column) => sum + (widths[column.key] ?? column.w), 0) + customColumns.length * 160 + ACTIONS_W,
+    [widths, customColumns.length],
+  )
 
   async function updateOfficer(id: string, patch: Partial<Officer>) {
     if (!editable) return
@@ -153,11 +182,12 @@ export function RosterHub() {
     if (patch.strikes !== undefined) dbPatch.strikes = patch.strikes
     if (patch.name !== undefined) dbPatch.name = patch.name
     if (patch.certs !== undefined) dbPatch.certs = patch.certs
+    if (patch.customFields !== undefined) dbPatch.custom_fields = patch.customFields
 
     // Update UI immediately
     setRosters((prev) => ({
       ...prev,
-      [active]: prev[active].map((o) => (o.id === id ? { ...o, ...patch } : o)),
+      [active]: (prev[active] ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }))
 
     // Save to Supabase
@@ -174,9 +204,13 @@ export function RosterHub() {
 
   async function addOfficer() {
     if (!editable) return
-    const newOfficer = makeOfficer()
+    const tempId = `temp-${crypto.randomUUID()}`
+    const newOfficer = makeOfficer({ id: tempId })
+    setRosters((prev) => ({
+      ...prev,
+      [active]: [...(prev[active] ?? []), newOfficer],
+    }))
 
-    // Save to Supabase first to get real ID
     const { data, error } = await supabase
       .from('officers')
       .insert({
@@ -195,16 +229,23 @@ export function RosterHub() {
         strikes: newOfficer.strikes,
         name: newOfficer.name,
         certs: newOfficer.certs,
+        custom_fields: newOfficer.customFields,
       })
-      .select()
+      .select(OFFICER_COLUMNS)
       .single()
 
-    if (!error && data) {
+    if (error || !data) {
       setRosters((prev) => ({
         ...prev,
-        [active]: [...prev[active], dbToOfficer(data)],
+        [active]: (prev[active] ?? []).filter((row) => row.id !== tempId),
       }))
+      return
     }
+
+    setRosters((prev) => ({
+      ...prev,
+      [active]: (prev[active] ?? []).map((row) => row.id === tempId ? dbToOfficer(data) : row),
+    }))
   }
 
   async function removeOfficer(id: string) {
@@ -213,7 +254,7 @@ export function RosterHub() {
     // Update UI immediately
     setRosters((prev) => ({
       ...prev,
-      [active]: prev[active].filter((o) => o.id !== id),
+      [active]: (prev[active] ?? []).filter((o) => o.id !== id),
     }))
 
     // Delete from Supabase
@@ -224,8 +265,8 @@ export function RosterHub() {
     <div className="flex flex-col gap-6">
       <SectionTitle
         eyebrow="Interactive Roster Hub"
-        title="منظومة كشف القوات الرقمي"
-        desc="اختر القطاع لتغيير الثيم بالكامل. جميع الخلايا قابلة للتعديل المباشر — أضف الأفراد وعبّئ البيانات بنفسك."
+        title={page?.title ?? 'منظومة كشف القوات الرقمي'}
+        desc={page?.description ?? 'اختر القطاع لتغيير الثيم بالكامل. جميع الخلايا قابلة للتعديل المباشر — أضف الأفراد وعبّئ البيانات بنفسك.'}
         icon={<Users className="size-6" />}
       />
 
@@ -319,6 +360,7 @@ export function RosterHub() {
                   {COLUMNS.map((col) => (
                     <col key={col.key} style={{ width: widths[col.key] ?? col.w }} />
                   ))}
+                  {customColumns.map((col) => <col key={col.id} style={{ width: widths[col.column_key] ?? 160 }} />)}
                   <col style={{ width: ACTIONS_W }} />
                 </colgroup>
                 <thead>
@@ -340,6 +382,14 @@ export function RosterHub() {
                         </div>
                       </th>
                     ))}
+                    {customColumns.map((col) => (
+                      <th key={col.id} className="relative whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
+                        <span className="block truncate pl-2">{col.label}</span>
+                        <div role="separator" aria-orientation="vertical" onPointerDown={(e) => startResize(col.column_key, e)} className="absolute inset-y-0 left-0 z-10 flex w-2 cursor-col-resize touch-none items-center justify-center">
+                          <span className="h-1/2 w-px bg-border" />
+                        </div>
+                      </th>
+                    ))}
                     <th className="px-3 py-3" />
                   </tr>
                 </thead>
@@ -347,7 +397,7 @@ export function RosterHub() {
                   {rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={COLUMNS.length + 1}
+                        colSpan={COLUMNS.length + customColumns.length + 1}
                         className="px-4 py-10 text-center text-sm text-muted-foreground"
                       >
                         لا يوجد أفراد بعد — اضغط «إضافة فرد» لبدء تعبئة الكشف.
@@ -529,6 +579,33 @@ export function RosterHub() {
                             })}
                           </div>
                         </td>
+                        {customColumns.map((column) => {
+                          const value = o.customFields?.[column.column_key] ?? ''
+                          const saveCustom = async (next: string) => {
+                            if (!editable) return
+                            const customFields = { ...(o.customFields ?? {}), [column.column_key]: next }
+                            setRosters((prev) => ({
+                              ...prev,
+                              [active]: (prev[active] ?? []).map((row) => row.id === o.id ? { ...row, customFields } : row),
+                            }))
+                            await supabase.from('officers').update({ custom_fields: customFields }).eq('id', o.id)
+                          }
+                          if (column.kind === 'select') {
+                            return (
+                              <td key={column.id} className="px-2 py-2">
+                                <select value={value} onChange={(e) => void saveCustom(e.target.value)} disabled={!editable} className="w-full rounded-md border border-border bg-background/50 px-2 py-1.5 text-xs text-foreground outline-none disabled:opacity-50">
+                                  <option value="">—</option>
+                                  {(column.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+                                </select>
+                              </td>
+                            )
+                          }
+                          return (
+                            <td key={column.id} className="px-2 py-2">
+                              <TextCell type={column.kind === 'number' ? 'number' : 'text'} value={value} onChange={(next) => void saveCustom(next)} placeholder="—" section="roster" />
+                            </td>
+                          )
+                        })}
                         <td className="px-2 py-2 text-center">
                           {editable ? (
                             <button
