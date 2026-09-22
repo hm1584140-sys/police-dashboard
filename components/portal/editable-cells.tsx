@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { useAdmin, type Section } from '@/lib/admin-context'
 
@@ -18,7 +19,7 @@ export function TextCell({
   alwaysEnabled = false,
 }: {
   value: string
-  onChange: (v: string) => void
+  onChange: (v: string) => void | Promise<void>
   placeholder?: string
   type?: 'text' | 'number'
   className?: string
@@ -28,12 +29,33 @@ export function TextCell({
 }) {
   const { canEdit } = useAdmin()
   const editable = alwaysEnabled || canEdit(section)
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  function commit() {
+    if (!editable || draft === value) return
+    void onChange(draft)
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Escape') {
+      setDraft(value)
+      event.currentTarget.blur()
+    }
+  }
+
   return (
     <input
       type={type}
       inputMode={type === 'number' ? 'numeric' : undefined}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       readOnly={!editable}
       aria-readonly={!editable}
