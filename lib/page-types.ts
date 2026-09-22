@@ -26,6 +26,7 @@ export type ContentBlock =
   | { type: 'callout'; tone?: 'info' | 'warn' | 'danger'; title: string; text: string }
   | { type: 'table'; title?: string; columns: string[]; rows: string[][] }
   | { type: 'stats'; items: Array<{ value: string; label: string; hint?: string }> }
+  | { type: 'sops-copy'; values: Record<string, string> }
 
 export type PageDefinition = {
   id: string
