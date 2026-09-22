@@ -8,6 +8,7 @@ import { TextCell } from '@/components/portal/editable-cells'
 import { violations as defaultViolations } from '@/lib/police-data'
 import { useAdmin } from '@/lib/admin-context'
 import { supabase } from '@/lib/supabase'
+import { logClientAction } from '@/lib/client-audit'
 import type { PageDefinition } from '@/lib/page-types'
 
 type ViolationItem = {
@@ -19,7 +20,7 @@ type ViolationItem = {
 }
 
 export function Violations({ page }: { page?: PageDefinition }) {
-  const { canEdit } = useAdmin()
+  const { canEdit, token } = useAdmin()
   const editable = canEdit('violations')
   const [items, setItems] = useState<ViolationItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,11 +99,13 @@ export function Violations({ page }: { page?: PageDefinition }) {
       penalty: data.penalty,
       isSevere: data.is_severe,
     } : item))
+    void logClientAction(token, 'violation_create', 'violation', String(data.id), { degree: data.degree })
   }
 
   async function removeViolation(id: string) {
     setItems((prev) => prev.filter((v) => v.id !== id))
-    await supabase.from('violations').delete().eq('id', id)
+    const { error } = await supabase.from('violations').delete().eq('id', id)
+    if (!error) void logClientAction(token, 'violation_delete', 'violation', id)
   }
 
   async function updateViolation(id: string, patch: Partial<ViolationItem>) {
@@ -112,7 +115,8 @@ export function Violations({ page }: { page?: PageDefinition }) {
     if (patch.desc !== undefined) dbPatch.description = patch.desc
     if (patch.penalty !== undefined) dbPatch.penalty = patch.penalty
     if (patch.isSevere !== undefined) dbPatch.is_severe = patch.isSevere
-    await supabase.from('violations').update(dbPatch).eq('id', id)
+    const { error } = await supabase.from('violations').update(dbPatch).eq('id', id)
+    if (!error) void logClientAction(token, 'violation_update', 'violation', id, { fields: Object.keys(dbPatch) })
   }
 
   return (
