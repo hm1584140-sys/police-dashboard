@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Ban,
   CheckCircle2,
-  Eye,
   FileCog,
-  KeyRound,
   Mail,
   MessageSquare,
   Plus,
@@ -90,7 +88,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [sectorManagerOpen, setSectorManagerOpen] = useState(false)
   const [rosterManagerOpen, setRosterManagerOpen] = useState(false)
   const [accountForm, setAccountForm] = useState<{ username: string; password: string; discordName: string; role: Role } | null>(null)
-  const [editing, setEditing] = useState<Account | null>(null)
+  const [editing, setEditing] = useState<EditableAccount | null>(null)
   const [banTarget, setBanTarget] = useState<Account | null>(null)
   const [banReason, setBanReason] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
@@ -441,7 +439,7 @@ function EditAccountModal({ account, onClose, onSave }: { account: Account; onCl
 }
 
 function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>void }) {
-  const [sectors,setSectors]=useState<PageDefinition[]>([])
+  const [sectors,setSectors]=useState<Array<{id:string;name:string;arabic:string}>>([])
   const [sector,setSector]=useState('')
   const [columns,setColumns]=useState<RosterColumn[]>([])
   const [label,setLabel]=useState('')
@@ -453,7 +451,7 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
     const res=await fetch('/api/sectors?admin=1&token='+encodeURIComponent(token))
     if(!res.ok)return
     const data=await res.json()
-    setSectors(data)
+    setSectors(data as Array<{id:string;name:string;arabic:string}>)
     if(!sector) setSector(data[0]?.id ?? '')
   }
   async function loadColumns(id=sector){
@@ -475,7 +473,7 @@ function RosterColumnsManager({ token, onClose }: { token:string; onClose:()=>vo
 
   return <Modal title="أعمدة كشف القوات" onClose={onClose}>
     <div className="grid gap-3">
-      <Field label="القطاع"><select value={sector} onChange={e=>setSector(e.target.value)} className="input-base">{sectors.map((s:any)=><option key={s.id} value={s.id}>{s.id} — {s.arabic ?? s.title}</option>)}</select></Field>
+      <Field label="القطاع"><select value={sector} onChange={e=>setSector(e.target.value)} className="input-base">{sectors.map((s)=><option key={s.id} value={s.id}>{s.id} — {s.arabic || s.name}</option>)}</select></Field>
       <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
         <Field label="اسم العمود الجديد"><input value={label} onChange={e=>setLabel(e.target.value)} className="input-base" placeholder="مثال: الإدارة المناوبة" /></Field>
         <Field label="نوع الخانة"><select value={kind} onChange={e=>setKind(e.target.value as RosterColumn['kind'])} className="input-base"><option value="text">نص</option><option value="number">رقم</option><option value="select">قائمة اختيار</option></select></Field>
