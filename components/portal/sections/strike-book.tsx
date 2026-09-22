@@ -7,6 +7,7 @@ import { NeonCard, SectionTitle, Pill } from '@/components/portal/primitives'
 import { TextCell } from '@/components/portal/editable-cells'
 import { useAdmin } from '@/lib/admin-context'
 import type { PageDefinition } from '@/lib/page-types'
+import { strikes as defaultStrikes } from '@/lib/police-data'
 
 type StrikeItem = {
   id: string
@@ -30,9 +31,41 @@ export function StrikeBook({ page }: { page?: PageDefinition }) {
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/strikes')
-    if (res.ok) setItems(await res.json())
-    setLoading(false)
+    try {
+      const res = await fetch('/api/strikes')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length) {
+          setItems(data)
+        } else {
+          setItems(defaultStrikes.map((row, index) => ({
+            id: `fallback-${index}`,
+            code: row.code,
+            description: row.desc,
+            points: row.points,
+            is_critical: Boolean(row.critical),
+          })))
+        }
+      } else {
+        setItems(defaultStrikes.map((row, index) => ({
+          id: `fallback-${index}`,
+          code: row.code,
+          description: row.desc,
+          points: row.points,
+          is_critical: Boolean(row.critical),
+        })))
+      }
+    } catch {
+      setItems(defaultStrikes.map((row, index) => ({
+        id: `fallback-${index}`,
+        code: row.code,
+        description: row.desc,
+        points: row.points,
+        is_critical: Boolean(row.critical),
+      })))
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { void load() }, [])
