@@ -10,6 +10,8 @@ import { useSector } from '@/lib/sector-context'
 type Props = { token: string; onClose: () => void }
 
 type FormState = {
+  originalId: string
+  canEditId: boolean
   id: string
   name: string
   arabicName: string
@@ -20,6 +22,8 @@ type FormState = {
 }
 
 const emptyForm: FormState = {
+  originalId: '',
+  canEditId: true,
   id: '',
   name: '',
   arabicName: '',
@@ -35,6 +39,8 @@ function toForm(sector: SectorDefinition): FormState {
   )
 
   return {
+    originalId: sector.id,
+    canEditId: !['LSPD', 'BCSO', 'SASP'].includes(sector.id) && !sector.is_template,
     id: sector.id,
     name: sector.name,
     arabicName: sector.arabic,
@@ -146,7 +152,8 @@ export function SectorManager({ token, onClose }: Props) {
 
     const payload = {
       token,
-      id: form.id.trim() || undefined,
+      id: form.originalId || form.id.trim() || undefined,
+      newId: form.id.trim() || undefined,
       name: form.name.trim(),
       arabicName: form.arabicName.trim() || form.name.trim(),
       description: form.description.trim(),
@@ -158,7 +165,7 @@ export function SectorManager({ token, onClose }: Props) {
         .filter(Boolean),
     }
 
-    const isEdit = sectors.some((sector) => sector.id === form.id)
+    const isEdit = Boolean(form.originalId)
     const res = await fetch('/api/sectors', {
       method: isEdit ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -272,7 +279,7 @@ export function SectorManager({ token, onClose }: Props) {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h4 className="font-heading text-lg font-extrabold text-foreground">
-                    {form.id ? 'تعديل القطاع' : 'إنشاء قطاع جديد'}
+                    {form.originalId ? 'تعديل القطاع' : 'إنشاء قطاع جديد'}
                   </h4>
                   <p className="mt-1 text-xs text-muted-foreground">احفظ الرتب كسطر منفصل لكل رتبة.</p>
                 </div>
@@ -283,7 +290,14 @@ export function SectorManager({ token, onClose }: Props) {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="رمز القطاع">
-                  <input value={form.id} disabled={Boolean(form.id)} onChange={(event) => setForm({ ...form, id: event.target.value.toUpperCase() })} placeholder="مثال: HPD" className="input-base" />
+                  <input
+                    value={form.id}
+                    disabled={!form.canEditId}
+                    onChange={(event) => setForm((current) => current ? { ...current, id: event.target.value.toUpperCase() } : current)}
+                    placeholder="مثال: HPD"
+                    className="input-base"
+                  />
+                  {!form.canEditId ? <p className="mt-1 text-[10px] text-muted-foreground">معرّف القطاعات الأساسية والقوالب الجاهزة محمي. القطاعات المخصصة يمكن تعديل معرفها قبل الضغط على حفظ القطاع.</p> : null}
                 </Field>
                 <Field label="اسم القطاع">
                   <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Highway Patrol" className="input-base" />
