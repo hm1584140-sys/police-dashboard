@@ -40,6 +40,7 @@ export async function findAccount(username: string, password: string): Promise<A
     .from('pd_accounts')
     .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at')
     .eq('username', clean)
+    .eq('password', password)
     .maybeSingle()
 
   if (error || !data) return null
@@ -56,13 +57,15 @@ export async function createSession(account: Pick<Account, 'username' | 'role' |
   const token = crypto.randomUUID()
   const now = Date.now()
 
-  await db().from('pd_sessions').insert({
+  const { error: sessionError } = await db().from('pd_sessions').insert({
     token,
     username: account.username,
     role: account.role,
     discord_name: account.discord_name ?? '',
     login_at: now,
   })
+
+  if (sessionError) throw new Error(sessionError.message)
 
   await db()
     .from('pd_accounts')
