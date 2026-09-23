@@ -228,13 +228,13 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
             <button type="button" onClick={snapshotCurrentSection} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary"><Copy className="size-3.5" /> نسخ هذا القسم</button>
           </div> : null}
           {sub === 'general' && <GeneralRules copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'cuffs' && <CuffsTaser copy={copy} />}
-          {sub === 'fire' && <FireArmed copy={copy} />}
-          {sub === 'arrest' && <ArrestMiranda copy={copy} />}
-          {sub === 'pursuit' && <PursuitPit copy={copy} />}
-          {sub === 'vehiclefire' && <VehicleFire copy={copy} />}
+          {sub === 'cuffs' && <CuffsTaser copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'fire' && <FireArmed copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'arrest' && <ArrestMiranda copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'pursuit' && <PursuitPit copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'vehiclefire' && <VehicleFire copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
           {sub === 'capacity' && <RobberyCapacity />}
-          {sub === 'failsafe' && <FailSafe copy={copy} />}
+          {sub === 'failsafe' && <FailSafe copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
           {customSections.map((section) =>
             sub === section.id ? (
               <div key={section.id}>
@@ -346,79 +346,79 @@ function GeneralRules({ copy, editable, onEdit }: { copy: Copy; editable?: boole
   )
 }
 
-function CuffsTaser({ copy }: { copy: Copy }) {
+function CuffsTaser({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="بروتوكولات الكلبشة" tone="warn">
-        <p>{copy.cuffs_intro}</p>
-        <ol className="mt-3 list-decimal space-y-1.5 pr-5 marker:text-primary">
+        <p onDoubleClick={()=>editable&&onEdit?.('cuffs_intro',copy.cuffs_intro)} className={editable?'cursor-text':''}>{copy.cuffs_intro}</p>
+        <ol onDoubleClick={()=>editable&&onEdit?.('cuffs_items',copy.cuffs_items)} className={cn('mt-3 list-decimal space-y-1.5 pr-5 marker:text-primary',editable&&'cursor-text')}>
           {lines(copy.cuffs_items).map((item) => <li key={item}>{item}</li>)}
         </ol>
       </InfoBlock>
       <InfoBlock title="بروتوكول استخدام التيزر">
-        <p>{copy.taser_intro}</p>
-        <p className="mt-3">{copy.taser_direct_intro}</p>
-        <ul className="mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive">
+        <p onDoubleClick={()=>editable&&onEdit?.('taser_intro',copy.taser_intro)} className={editable?'cursor-text':''}>{copy.taser_intro}</p>
+        <p onDoubleClick={()=>editable&&onEdit?.('taser_direct_intro',copy.taser_direct_intro)} className={editable?'mt-3 cursor-text':'mt-3'}>{copy.taser_direct_intro}</p>
+        <ul onDoubleClick={()=>editable&&onEdit?.('taser_items',copy.taser_items)} className={cn('mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive',editable&&'cursor-text')}>
           {lines(copy.taser_items).map((item) => <li key={item}>{item}</li>)}
         </ul>
       </InfoBlock>
-      <Extra text={copy.cuffs_extra} />
+      <div onDoubleClick={()=>editable&&onEdit?.('cuffs_extra',copy.cuffs_extra)} className={editable?'cursor-text':''}><Extra text={copy.cuffs_extra} /></div>
     </div>
   )
 }
 
-function FireArmed({ copy }: { copy: Copy }) {
+function FireArmed({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="إطلاق النار على المسلحين" tone="danger">
-        <p>{copy.fire_intro}</p>
-        <ol className="mt-3 list-decimal space-y-2 pr-5 marker:text-destructive">
+        <p onDoubleClick={()=>editable&&onEdit?.('fire_intro',copy.fire_intro)} className={editable?'cursor-text':''}>{copy.fire_intro}</p>
+        <ol onDoubleClick={()=>editable&&onEdit?.('fire_items',copy.fire_items)} className={cn('mt-3 list-decimal space-y-2 pr-5 marker:text-destructive',editable&&'cursor-text')}>
           {lines(copy.fire_items).map((item) => <li key={item}>{item}</li>)}
         </ol>
       </InfoBlock>
-      <Extra text={copy.fire_extra} />
+      <div onDoubleClick={()=>editable&&onEdit?.('fire_extra',copy.fire_extra)} className={editable?'cursor-text':''}><Extra text={copy.fire_extra} /></div>
     </div>
   )
 }
 
-function ArrestMiranda({ copy }: { copy: Copy }) {
+function ArrestMiranda({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
-      <InfoBlock title="الاعتقال وحقوق ميراندا"><p>{copy.arrest_intro}</p></InfoBlock>
-      <NeonCard glow className="p-6"><p className="border-r-4 border-r-primary pr-4 font-heading text-base leading-loose text-foreground">«{copy.miranda}»</p></NeonCard>
-      <InfoBlock title="إجراءات ما بعد الاعتقال"><p>{copy.post_arrest}</p></InfoBlock>
-      <Extra text={copy.arrest_extra} />
+      <InfoBlock title="الاعتقال وحقوق ميراندا"><p onDoubleClick={()=>editable&&onEdit?.('arrest_intro',copy.arrest_intro)} className={editable?'cursor-text':''}>{copy.arrest_intro}</p></InfoBlock>
+      <NeonCard glow className="p-6"><p onDoubleClick={()=>editable&&onEdit?.('miranda',copy.miranda)} className={cn('border-r-4 border-r-primary pr-4 font-heading text-base leading-loose text-foreground',editable&&'cursor-text')}>«{copy.miranda}»</p></NeonCard>
+      <InfoBlock title="إجراءات ما بعد الاعتقال"><p onDoubleClick={()=>editable&&onEdit?.('post_arrest',copy.post_arrest)} className={editable?'cursor-text':''}>{copy.post_arrest}</p></InfoBlock>
+      <div onDoubleClick={()=>editable&&onEdit?.('arrest_extra',copy.arrest_extra)} className={editable?'cursor-text':''}><Extra text={copy.arrest_extra} /></div>
     </div>
   )
 }
 
-function PursuitPit({ copy }: { copy: Copy }) {
+function PursuitPit({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-2">
         {pursuitCapacity.map((row) => <NeonCard key={row.type} className="p-4"><p className="font-heading text-sm font-bold text-foreground">{row.type}</p><p className="mt-1 font-mono text-primary">{row.units}</p></NeonCard>)}
       </div>
-      <InfoBlock title="تحديثات الدسباتش"><p>{copy.dispatch}</p></InfoBlock>
+      <InfoBlock title="تحديثات الدسباتش"><p onDoubleClick={()=>editable&&onEdit?.('dispatch',copy.dispatch)} className={editable?'cursor-text':''}>{copy.dispatch}</p></InfoBlock>
       <InfoBlock title="مناورة الصدم (PIT Maneuver)" tone="warn">
-        <p>{copy.pit_intro}</p>
-        <ol className="mt-2 list-decimal space-y-1.5 pr-5 marker:text-primary">{lines(copy.pit_items).map((item) => <li key={item}>{item}</li>)}</ol>
+        <p onDoubleClick={()=>editable&&onEdit?.('pit_intro',copy.pit_intro)} className={editable?'cursor-text':''}>{copy.pit_intro}</p>
+        <ol onDoubleClick={()=>editable&&onEdit?.('pit_items',copy.pit_items)} className={cn('mt-2 list-decimal space-y-1.5 pr-5 marker:text-primary',editable&&'cursor-text')}>{lines(copy.pit_items).map((item) => <li key={item}>{item}</li>)}</ol>
         <p className="mt-4 font-bold text-foreground">الشروط الصارمة للـ PIT:</p>
-        <ul className="mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive">{lines(copy.pit_conditions).map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul onDoubleClick={()=>editable&&onEdit?.('pit_conditions',copy.pit_conditions)} className={cn('mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive',editable&&'cursor-text')}>{lines(copy.pit_conditions).map((item) => <li key={item}>{item}</li>)}</ul>
       </InfoBlock>
-      <Extra text={copy.pursuit_extra} />
+      <div onDoubleClick={()=>editable&&onEdit?.('pursuit_extra',copy.pursuit_extra)} className={editable?'cursor-text':''}><Extra text={copy.pursuit_extra} /></div>
     </div>
   )
 }
 
-function VehicleFire({ copy }: { copy: Copy }) {
+function VehicleFire({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   const cases = lines(copy.vehicle_cases).map((line) => {
     const [t, ...rest] = line.split('|')
     return { t: t || 'حالة', d: rest.join('|') }
   })
   return (
     <div className="flex flex-col gap-4">
-      <InfoBlock title="إطلاق النار على المركبة" tone="danger"><p>{copy.vehicle_intro}</p></InfoBlock>
-      <div className="grid gap-3">
+      <InfoBlock title="إطلاق النار على المركبة" tone="danger"><p onDoubleClick={()=>editable&&onEdit?.('vehicle_intro',copy.vehicle_intro)} className={editable?'cursor-text':''}>{copy.vehicle_intro}</p></InfoBlock>
+      <div onDoubleClick={()=>editable&&onEdit?.('vehicle_cases',copy.vehicle_cases)} className={cn('grid gap-3',editable&&'cursor-text')}>
         {cases.map((item, i) => (
           <NeonCard key={`${item.t}-${i}`} className="flex items-start gap-4 p-4">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-destructive/50 bg-destructive/15 font-mono font-bold text-destructive">{i + 1}</span>
@@ -426,7 +426,7 @@ function VehicleFire({ copy }: { copy: Copy }) {
           </NeonCard>
         ))}
       </div>
-      <Extra text={copy.vehicle_extra} />
+      <div onDoubleClick={()=>editable&&onEdit?.('vehicle_extra',copy.vehicle_extra)} className={editable?'cursor-text':''}><Extra text={copy.vehicle_extra} /></div>
     </div>
   )
 }
@@ -445,17 +445,17 @@ function RobberyCapacity() {
   )
 }
 
-function FailSafe({ copy }: { copy: Copy }) {
+function FailSafe({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div onDoubleClick={()=>editable&&onEdit?.('failsafe_items',copy.failsafe_items)} className={cn('grid gap-2.5 sm:grid-cols-2',editable&&'cursor-text')}>
         {lines(copy.failsafe_items).map((item) => <div key={item} className="flex items-center gap-2.5 rounded-lg border border-border bg-card/60 px-4 py-2.5 text-sm text-foreground"><ShieldOff className="size-4 shrink-0 text-destructive" /><span className="font-heading">{item}</span></div>)}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الهروب على الأقدام بسلاح</p><p className="text-sm text-muted-foreground">{copy.foot_escape}</p></NeonCard>
-        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الحد الأقصى الكلي للهروب</p><p className="font-mono text-primary">{copy.max_escape}</p></NeonCard>
+        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الهروب على الأقدام بسلاح</p><p onDoubleClick={()=>editable&&onEdit?.('foot_escape',copy.foot_escape)} className={editable?'cursor-text text-sm text-muted-foreground':'text-sm text-muted-foreground'}>{copy.foot_escape}</p></NeonCard>
+        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الحد الأقصى الكلي للهروب</p><p onDoubleClick={()=>editable&&onEdit?.('max_escape',copy.max_escape)} className={editable?'cursor-text font-mono text-primary':'font-mono text-primary'}>{copy.max_escape}</p></NeonCard>
       </div>
-      <Extra text={copy.failsafe_extra} />
+      <div onDoubleClick={()=>editable&&onEdit?.('failsafe_extra',copy.failsafe_extra)} className={editable?'cursor-text':''}><Extra text={copy.failsafe_extra} /></div>
     </div>
   )
 }
