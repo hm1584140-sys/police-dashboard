@@ -29,6 +29,7 @@ export type ContentBlock =
   | { type: 'sops-copy'; values: Record<string, string> }
   | { type: 'sops-section'; id: string; title: string; icon: string; content: string; template?: 'plain' | 'general' | 'cuffs' | 'fire' | 'arrest' | 'pursuit' | 'vehiclefire' | 'capacity' | 'failsafe'; values?: Record<string, string> }
   | { type: 'custom-list-config'; listId: string }
+  | { type: 'book-page'; id: string; title: string; body: string }
 
 export type PageDefinition = {
   id: string
