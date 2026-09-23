@@ -44,6 +44,7 @@ export async function POST(req: Request) {
             label: String(item.label ?? item.key ?? 'حقل').trim(),
             kind: ['text','number','select'].includes(String(item.kind)) ? String(item.kind) : 'text',
             options: Array.isArray(item.options) ? item.options.map(String) : [],
+            width: Math.max(90, Math.min(Number((item as { width?: number }).width) || 170, 600)),
           }
         })
       : []
