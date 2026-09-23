@@ -34,6 +34,8 @@ type Account = {
   ban_reason: string
   last_login_at?: string | null
   created_at?: string
+  banned_until?: string | null
+  ban_scope?: 'account' | 'discord'
   permissions: Permission[]
 }
 
@@ -118,6 +120,8 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [editing, setEditing] = useState<EditableAccount | null>(null)
   const [banTarget, setBanTarget] = useState<Account | null>(null)
   const [banReason, setBanReason] = useState('')
+  const [banDuration, setBanDuration] = useState<number | null>(1440)
+  const [banScope, setBanScope] = useState<'account' | 'discord'>('account')
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [appealReview, setAppealReview] = useState<{ appeal: Appeal; status: Appeal['status']; response: string } | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
@@ -209,15 +213,15 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     setEditing(null); setMessage('تم تعديل الحساب ✓'); await loadCore(true)
   }
 
-  async function ban(username: string, banned: boolean, reason = '') {
+  async function ban(username: string, banned: boolean, reason = '', durationMinutes: number | null = null, scope: 'account' | 'discord' = 'account') {
     const res = await fetch('/api/auth/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, username, action: banned ? 'ban' : 'unban', reason }),
+      body: JSON.stringify({ token, username, action: banned ? 'ban' : 'unban', reason, durationMinutes, banScope: scope }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setMessage(data.error ?? 'تعذر تنفيذ العملية')
-    setBanTarget(null); setBanReason(''); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓'); await loadCore(true)
+    setBanTarget(null); setBanReason(''); setBanDuration(1440); setBanScope('account'); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓'); await loadCore(true)
   }
 
   async function removeAccount(username: string) {
@@ -357,11 +361,11 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                         {can('accounts.edit') ? <button type="button" onClick={() => setEditing(account)} className="rounded-md border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted/30">تعديل</button> : null}
                         {can('accounts.ban') && account.username !== currentUsername && account.username !== 'owner' ? (account.is_banned
                           ? <button type="button" onClick={() => void ban(account.username, false)} className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary">فك الباند</button>
-                          : <button type="button" onClick={() => { setBanTarget(account); setBanReason('') }} className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-bold text-destructive"><Ban className="mr-1 inline size-3.5" />تبنيد</button>) : null}
+                          : <button type="button" onClick={() => { setBanTarget(account); setBanReason(''); setBanDuration(1440); setBanScope('account') }} className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-bold text-destructive"><Ban className="mr-1 inline size-3.5" />تبنيد</button>) : null}
                         {can('accounts.delete') && account.username !== currentUsername && account.username !== 'owner' ? <button type="button" onClick={() => setDeleteTarget(account)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"><Trash2 className="size-3.5" /></button> : null}
                       </div>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">آخر دخول: {account.last_login_at ? new Date(account.last_login_at).toLocaleString('ar') : 'لم يدخل بعد'}{account.is_banned && account.ban_reason ? ` • سبب الباند: ${account.ban_reason}` : ''}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">آخر دخول: {account.last_login_at ? new Date(account.last_login_at).toLocaleString('ar') : 'لم يدخل بعد'}{account.is_banned && account.ban_reason ? ` • سبب الباند: ${account.ban_reason}` : ''}{account.is_banned && account.banned_until ? ` • حتى: ${new Date(account.banned_until).toLocaleString('ar')}` : account.is_banned ? ' • دائم' : ''}</p>
                   </div>
                 ))}
               </div>
@@ -484,8 +488,29 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
 
       {banTarget ? (
         <Modal title={`تبنيد ${banTarget.username}`} onClose={() => setBanTarget(null)}>
-          <Field label="سبب الباند"><textarea value={banReason} onChange={e=>setBanReason(e.target.value)} className="input-base min-h-28 resize-y" placeholder="اكتب السبب الذي سيظهر للمبند..." /></Field>
-          <Actions onCancel={()=>setBanTarget(null)} onSave={()=>void ban(banTarget.username,true,banReason)} saveLabel="تأكيد الباند" />
+          <div className="grid gap-3">
+            <Field label="سبب الباند"><textarea value={banReason} onChange={e=>setBanReason(e.target.value)} className="input-base min-h-28 resize-y" placeholder="اكتب السبب الذي سيظهر للمبند..." /></Field>
+            <Field label="مدة الباند">
+              <select value={banDuration === null ? 'permanent' : String(banDuration)} onChange={(e)=>setBanDuration(e.target.value === 'permanent' ? null : Number(e.target.value))} className="input-base">
+                <option value="10">10 دقائق</option>
+                <option value="30">30 دقيقة</option>
+                <option value="60">ساعة</option>
+                <option value="360">6 ساعات</option>
+                <option value="1440">يوم</option>
+                <option value="4320">3 أيام</option>
+                <option value="10080">7 أيام</option>
+                <option value="43200">30 يوم</option>
+                <option value="permanent">دائم</option>
+              </select>
+            </Field>
+            <Field label="نوع الباند">
+              <select value={banScope} onChange={(e)=>setBanScope(e.target.value as 'account' | 'discord')} className="input-base">
+                <option value="account">هذا الحساب فقط</option>
+                <option value="discord">كل الحسابات المرتبطة بنفس Discord</option>
+              </select>
+            </Field>
+          </div>
+          <Actions onCancel={()=>setBanTarget(null)} onSave={()=>void ban(banTarget.username,true,banReason,banDuration,banScope)} saveLabel="تأكيد الباند" />
         </Modal>
       ) : null}
 
