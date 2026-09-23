@@ -67,12 +67,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (!saved) { setLoading(false); return }
     checkSession(saved)
 
-    // فحص خفيف للجلسة بدون ضغط زائد على الموقع.
+    // فحص سريع للجلسة حتى الباند/الطرد يطبق تقريباً فوراً.
     const interval = setInterval(() => {
       if (document.visibilityState !== 'visible') return
       const currentToken = localStorage.getItem(TOKEN_KEY)
       if (currentToken) checkSession(currentToken)
-    }, 20000)
+    }, 1500)
 
     return () => clearInterval(interval)
   }, [])
