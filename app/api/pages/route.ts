@@ -3,12 +3,13 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { getSession } from '@/lib/auth'
 import type { PageRenderer } from '@/lib/page-types'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
 const PAGE_COLUMNS = 'id,slug,title,description,icon,page_type,renderer,is_visible,is_system,sort_order,sector_id,blocks,created_at,updated_at'
 
-async function requireOwner(token: string | null) {
+async function requireAccess(token: string | null) {
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'pages.manage') ? session : null
 }
 
 function cleanPage(input: Record<string, unknown>) {
@@ -30,7 +31,7 @@ function cleanPage(input: Record<string, unknown>) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const token = searchParams.get('token')
-  const owner = await requireOwner(token)
+  const owner = await requireAccess(token)
 
   const db = getServerSupabase()
   const query = db.from('pd_pages').select(PAGE_COLUMNS).order('sort_order', { ascending: true })
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const { token, slug, ...input } = await req.json()
-    const owner = await requireOwner(token)
+    const owner = await requireAccess(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
     const cleanSlug = String(slug ?? input.title ?? '')
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const { token, id, ...input } = await req.json()
-    const owner = await requireOwner(token)
+    const owner = await requireAccess(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (!id) return NextResponse.json({ error: 'المعرف مطلوب' }, { status: 400 })
 
@@ -98,7 +99,7 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { token, id } = await req.json()
-    const owner = await requireOwner(token)
+    const owner = await requireAccess(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
     const db = getServerSupabase()
