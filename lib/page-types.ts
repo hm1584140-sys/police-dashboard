@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type PageRenderer = 'cms' | 'sops' | 'radio' | 'roster' | 'outfits' | 'strikes' | 'violations'
+export type PageRenderer = 'cms' | 'sops' | 'book' | 'radio' | 'roster' | 'outfits' | 'strikes' | 'violations'
 
 export type ContentBlock =
   | { type: 'heading'; text: string }
@@ -46,6 +46,7 @@ export type PageDefinition = {
 
 export const BUILTIN_PAGES: PageDefinition[] = [
   { id: 'builtin-sops', slug: 'sops', title: 'كتيب البروتوكولات', description: 'المرجع المعتمد للبروتوكولات والقواعد الداخلية.', icon: 'BookMarked', page_type: 'handbook', renderer: 'sops', is_visible: true, is_system: true, sort_order: 10, sector_id: null, blocks: [] },
+  { id: 'builtin-sops-book', slug: 'sops-book', title: 'كتاب الـ SOPs', description: 'نسخة كتاب إلكتروني بتقليب الصفحات من داخل الموقع.', icon: 'BookMarked', page_type: 'handbook', renderer: 'book', is_visible: false, is_system: true, sort_order: 15, sector_id: null, blocks: [] },
   { id: 'builtin-radio', slug: 'radio', title: 'بروتوكولات اللاسلكي', description: 'جداول الأكواد والاتصالات اللاسلكية.', icon: 'Radio', page_type: 'table', renderer: 'radio', is_visible: true, is_system: true, sort_order: 20, sector_id: null, blocks: [] },
   { id: 'builtin-roster', slug: 'roster', title: 'كشف القوات الرقمي', description: 'الجدول الرئيسي للأفراد والرتب والقطاعات.', icon: 'Users', page_type: 'roster', renderer: 'roster', is_visible: true, is_system: true, sort_order: 30, sector_id: null, blocks: [] },
   { id: 'builtin-outfits', slug: 'outfits', title: 'دليل ملابس الرتب', description: 'دليل الـ Decals والـ Textures لكل رتبة.', icon: 'Shirt', page_type: 'table', renderer: 'outfits', is_visible: true, is_system: true, sort_order: 40, sector_id: null, blocks: [] },
