@@ -184,13 +184,14 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
   const editable = Boolean(token && can('pages.manage') && page?.id)
   const [sub, setSub] = useState<string>('general')
   const [sectionEditor, setSectionEditor] = useState<SectionEditorState | null>(null)
+  const [navOrder, setNavOrder] = useState<string[]>([])
   const copy = useMemo(() => getSopsCopy(page?.blocks), [page?.blocks])
   const customSections = useMemo(
     () => (page?.blocks ?? []).filter((block): block is CustomSection => block.type === 'sops-section'),
     [page?.blocks],
   )
-  const navigation = useMemo(
-    () => [
+  const navigation = useMemo(() => {
+    const all = [
       ...SUB.map((item) => ({ ...item, custom: false as const })),
       ...customSections.map((item) => ({
         id: item.id,
@@ -198,9 +199,37 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         icon: PAGE_ICON_MAP[item.icon] ?? ScrollText,
         custom: true as const,
       })),
-    ],
-    [customSections],
-  )
+    ]
+    if (!navOrder.length) return all
+    const rank = new Map(navOrder.map((id, index) => [id, index]))
+    return [...all].sort((a, b) => (rank.get(a.id) ?? 9999) - (rank.get(b.id) ?? 9999))
+  }, [customSections, navOrder])
+
+  useEffect(() => {
+    if (!editable) return
+    fetch('/api/site-overrides?scope=' + encodeURIComponent('sops-layout'), { cache: 'no-store' })
+      .then((res) => res.ok ? res.json() : [])
+      .then((rows: Array<{ element_key: string; value?: { order?: string[] } }>) => {
+        const row = rows.find((item) => item.element_key === 'section-order')
+        if (Array.isArray(row?.value?.order)) setNavOrder(row!.value!.order!)
+      })
+      .catch(() => {})
+  }, [editable])
+
+  async function moveSection(id: string, delta: -1 | 1) {
+    if (!token) return
+    const current = navigation.map((item) => item.id)
+    const index = current.indexOf(id)
+    const target = index + delta
+    if (index < 0 || target < 0 || target >= current.length) return
+    ;[current[index], current[target]] = [current[target], current[index]]
+    setNavOrder(current)
+    await fetch('/api/site-overrides', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, scope: 'sops-layout', elementKey: 'section-order', value: { order: current } }),
+    }).catch(() => {})
+  }
 
   async function saveBlocks(blocks: ContentBlock[]) {
     if (!editable || !page || !token) return
@@ -305,12 +334,18 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
               const Icon = s.icon
               const isActive = sub === s.id
               return (
-                <button key={s.id} type="button" onClick={() => setSub(s.id)}
-                  className={cn('flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-right text-sm font-bold transition-colors',
-                    isActive ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground')}>
-                  <span className="flex items-center gap-2"><Icon className="size-4 shrink-0" /><span className="font-heading">{s.label}</span></span>
-                  {isActive ? <ChevronLeft className="size-4" /> : null}
-                </button>
+                <div key={s.id} className={cn('flex items-center gap-1 rounded-lg', isActive && 'bg-primary/10')}>
+                  <button type="button" onClick={() => setSub(s.id)}
+                    className={cn('flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-right text-sm font-bold transition-colors',
+                      isActive ? 'text-primary' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground')}>
+                    <span className="flex min-w-0 items-center gap-2"><Icon className="size-4 shrink-0" /><span className="truncate font-heading">{s.label}</span></span>
+                    {isActive ? <ChevronLeft className="size-4 shrink-0" /> : null}
+                  </button>
+                  {editable ? <div className="flex shrink-0 items-center gap-0.5 pl-1">
+                    <button type="button" onClick={() => void moveSection(s.id, -1)} title="تحريك القسم للأعلى" className="rounded border border-border p-1 text-muted-foreground hover:text-primary">↑</button>
+                    <button type="button" onClick={() => void moveSection(s.id, 1)} title="تحريك القسم للأسفل" className="rounded border border-border p-1 text-muted-foreground hover:text-primary">↓</button>
+                  </div> : null}
+                </div>
               )
             })}
           </div>
@@ -339,9 +374,9 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         </div>
       </div>
       {sectionEditor ? (
-        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/75 p-3" onClick={() => setSectionEditor(null)}>
-          <div className="w-full max-w-2xl" onClick={(e)=>e.stopPropagation()}>
-            <NeonCard glow className="p-5">
+        <div className="fixed inset-0 z-[180] flex items-start justify-center overflow-y-auto bg-black/75 p-3 pt-6" onClick={() => setSectionEditor(null)}>
+          <div className="w-full max-w-xl" onClick={(e)=>e.stopPropagation()}>
+            <NeonCard glow className="max-h-[88vh] overflow-y-auto p-4">
               <div className="mb-4 flex items-center justify-between"><h4 className="font-heading text-lg font-extrabold">إضافة / تعديل قسم بروتوكول</h4><button type="button" onClick={()=>setSectionEditor(null)} className="rounded border border-border p-2"><X className="size-4"/></button></div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">اسم القسم</span><input value={sectionEditor.title} onChange={(e)=>setSectionEditor({...sectionEditor,title:e.target.value})} className="input-base" placeholder="اسم القسم"/></label>
@@ -356,7 +391,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
               </div>
 
               {sectionEditor.template === 'plain' ? (
-                <label className="mt-3 block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">محتوى حر</span><textarea value={sectionEditor.content} onChange={(e)=>setSectionEditor({...sectionEditor,content:e.target.value})} className="input-base min-h-72 resize-y" placeholder="محتوى القسم..."/></label>
+                <label className="mt-3 block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">محتوى حر</span><textarea value={sectionEditor.content} onChange={(e)=>setSectionEditor({...sectionEditor,content:e.target.value})} className="input-base min-h-40 resize-y" placeholder="محتوى القسم..."/></label>
               ) : sectionEditor.template === 'capacity' ? (
                 <div className="mt-3 rounded-xl border border-primary/25 bg-primary/5 p-4 text-sm text-muted-foreground">هذا القالب يستخدم نفس تصميم جدول القوة الاستيعابية الأصلي.</div>
               ) : (
