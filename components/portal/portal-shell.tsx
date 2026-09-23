@@ -229,7 +229,7 @@ export function PortalShell() {
   const [active, setActive] = useState('sops')
   const [quickEditorOpen, setQuickEditorOpen] = useState(false)
   const { currentSector } = useSector()
-  const { isOwner, token } = useAdmin()
+  const { can, token } = useAdmin()
 
   const loadPages = useCallback(async () => {
     try {
@@ -311,7 +311,7 @@ export function PortalShell() {
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
-          {isOwner && token && activePage ? (
+          {can('pages.manage') && token && activePage ? (
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
