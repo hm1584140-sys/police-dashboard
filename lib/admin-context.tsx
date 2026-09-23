@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import type { Permission } from '@/lib/permissions'
 
 export type Section = 'sops' | 'radio' | 'roster' | 'outfits' | 'strikes' | 'violations'
 export type Role = 'visitor' | 'commander' | 'admin' | 'owner'
@@ -13,6 +14,7 @@ type AdminContextValue = {
   username: string | null
   discordName: string | null
   token: string | null
+  permissions: Permission[]
   isOwner: boolean
   isAdmin: boolean
   isCommander: boolean
@@ -21,6 +23,7 @@ type AdminContextValue = {
   login: (username: string, password: string, discordName: string) => Promise<{ ok: boolean; banned?: boolean; reason?: string; discordName?: string; error?: string }>
   logout: () => void
   canEdit: (section: Section) => boolean
+  can: (permission: Permission) => boolean
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null)
@@ -30,6 +33,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [username, setUsername] = useState<string | null>(null)
   const [discordName, setDiscordName] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const [loading, setLoading] = useState(true)
 
   async function checkSession(savedToken: string) {
@@ -41,6 +45,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setUsername(data.username)
         setDiscordName(data.discordName ?? '')
         setToken(savedToken)
+        setPermissions(Array.isArray(data.permissions) ? data.permissions : [])
       } else {
         // الجلسة انتهت أو انطرد — نسجل خروج تلقائي
         localStorage.removeItem(TOKEN_KEY)
@@ -48,6 +53,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setUsername(null)
         setDiscordName(null)
         setToken(null)
+        setPermissions([])
       }
     } catch {
       localStorage.removeItem(TOKEN_KEY)
@@ -85,6 +91,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setUsername(data.username)
       setDiscordName(data.discordName ?? discord)
       setToken(data.token)
+      setPermissions(Array.isArray(data.permissions) ? data.permissions : [])
       localStorage.setItem(TOKEN_KEY, data.token)
       return { ok: true, discordName: data.discordName }
     } catch {
@@ -105,6 +112,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setUsername(null)
     setDiscordName(null)
     setToken(null)
+    setPermissions([])
+  }
+
+  function can(permission: Permission) {
+    if (role === 'owner') return true
+    return permissions.includes(permission)
   }
 
   function canEdit(section: Section) {
@@ -115,13 +128,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      role, username, discordName, token,
+      role, username, discordName, token, permissions,
       isOwner: role === 'owner',
       isAdmin: role === 'admin' || role === 'owner',
       isCommander: role === 'commander',
       isVisitor: role === 'visitor',
       loading,
-      login, logout, canEdit,
+      login, logout, canEdit, can,
     }}>
       {children}
     </AdminContext.Provider>
