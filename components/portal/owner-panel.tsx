@@ -20,6 +20,7 @@ import { NeonCard, Pill } from './primitives'
 import { cn } from '@/lib/utils'
 import { PageManager } from './page-manager'
 import { SectorManager } from './sector-manager'
+import { CustomListManager } from './custom-list-manager'
 import type { Role } from '@/lib/auth'
 import { PERMISSIONS, PERMISSION_LABELS, type Permission } from '@/lib/permissions'
 import { useAdmin } from '@/lib/admin-context'
@@ -116,6 +117,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [pageManagerOpen, setPageManagerOpen] = useState(false)
   const [sectorManagerOpen, setSectorManagerOpen] = useState(false)
   const [rosterManagerOpen, setRosterManagerOpen] = useState(false)
+  const [customListManagerOpen, setCustomListManagerOpen] = useState(false)
   const [accountForm, setAccountForm] = useState<{ username: string; password: string; discordName: string; role: Role; permissions: Permission[] } | null>(null)
   const [editing, setEditing] = useState<EditableAccount | null>(null)
   const [banTarget, setBanTarget] = useState<Account | null>(null)
@@ -460,7 +462,10 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
           {tab === 'roster' ? (
             <div className="rounded-xl border border-border bg-background/30 p-5">
               <p className="mb-4 text-sm text-muted-foreground">أضف أعمدة جديدة لكل قطاع. العمود يظهر فوراً على جميع الأفراد الحاليين والجدد داخل نفس القطاع.</p>
-              <button type="button" onClick={() => setRosterManagerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary"><FileCog className="size-4" /> إدارة أعمدة كشف القوات</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setRosterManagerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary"><FileCog className="size-4" /> إدارة أعمدة كشف القوات</button>
+                <button type="button" onClick={() => setCustomListManagerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إنشاء قائمة تشغيلية جديدة</button>
+              </div>
             </div>
           ) : null}
 
@@ -499,6 +504,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
       {pageManagerOpen ? <PageManager token={token} onClose={() => setPageManagerOpen(false)} /> : null}
       {sectorManagerOpen ? <SectorManager token={token} onClose={() => setSectorManagerOpen(false)} /> : null}
       {rosterManagerOpen ? <RosterColumnsManager token={token} onClose={() => setRosterManagerOpen(false)} /> : null}
+      {customListManagerOpen ? <CustomListManager token={token} onClose={() => setCustomListManagerOpen(false)} /> : null}
 
       {accountForm ? (
         <Modal title="إنشاء حساب جديد" onClose={() => setAccountForm(null)}>
