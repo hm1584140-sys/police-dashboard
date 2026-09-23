@@ -182,6 +182,21 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
 
   useEffect(() => { void loadCore() }, [])
 
+  useEffect(() => {
+    if (tab !== 'appeals' || !can('appeals.manage')) return
+    const refreshAppeals = async () => {
+      try {
+        const res = await fetch('/api/auth/appeals?token=' + encodeURIComponent(token), { cache: 'no-store' })
+        if (res.ok) setAppeals(await res.json())
+      } catch {}
+    }
+    void refreshAppeals()
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshAppeals()
+    }, 900)
+    return () => window.clearInterval(interval)
+  }, [tab, token])
+
   async function createAccount() {
     if (!accountForm) return
     const res = await fetch('/api/auth/accounts', {
@@ -214,14 +229,30 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   }
 
   async function ban(username: string, banned: boolean, reason = '', durationMinutes: number | null = null, scope: 'account' | 'discord' = 'account') {
+    const until = banned && durationMinutes ? new Date(Date.now() + durationMinutes * 60_000).toISOString() : null
+    setAccounts((prev) => prev.map((item) => item.username === username ? {
+      ...item,
+      is_banned: banned,
+      ban_reason: banned ? reason : '',
+      banned_until: until,
+      ban_scope: scope,
+    } : item))
+    if (banned) setSessions((prev) => prev.filter((item) => item.username !== username))
+    setBanTarget(null)
+
     const res = await fetch('/api/auth/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, username, action: banned ? 'ban' : 'unban', reason, durationMinutes, banScope: scope }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) return setMessage(data.error ?? 'تعذر تنفيذ العملية')
-    setBanTarget(null); setBanReason(''); setBanDuration(1440); setBanScope('account'); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓'); await loadCore(true)
+    if (!res.ok) {
+      setMessage(data.error ?? 'تعذر تنفيذ العملية')
+      await loadCore(true)
+      return
+    }
+    setBanReason(''); setBanDuration(1440); setBanScope('account'); setMessage(banned ? 'تم التبنيد وطرد الجلسات ✓' : 'تم فك الباند ✓')
+    await loadCore(true)
   }
 
   async function removeAccount(username: string) {
