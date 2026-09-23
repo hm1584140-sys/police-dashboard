@@ -18,6 +18,7 @@ type FormState = {
   description: string
   tagline: string
   themeKey: string
+  customVars: Record<string, string>
   ranks: string
 }
 
@@ -30,6 +31,18 @@ const emptyForm: FormState = {
   description: '',
   tagline: '',
   themeKey: 'blue',
+  customVars: {
+    '--background': '#07111f',
+    '--card': '#0d1b2e',
+    '--popover': '#0a1627',
+    '--primary': '#16c7ff',
+    '--accent': '#164e72',
+    '--neon': '#42dcff',
+    '--ring': '#16c7ff',
+    '--border': '#1b607d',
+    '--muted': '#17263a',
+    '--primary-foreground': '#041018',
+  },
   ranks: '',
 }
 
@@ -46,7 +59,11 @@ function toForm(sector: SectorDefinition): FormState {
     arabicName: sector.arabic,
     description: sector.description,
     tagline: sector.tagline,
-    themeKey: matching?.[0] ?? 'blue',
+    themeKey: matching?.[0] ?? 'custom',
+    customVars: {
+      ...emptyForm.customVars,
+      ...Object.fromEntries(Object.entries(sector.vars).filter(([, value]) => /^#[0-9a-f]{6}$/i.test(value))),
+    },
     ranks: sector.ranks.join('\n'),
   }
 }
@@ -58,6 +75,7 @@ export function SectorManager({ token, onClose }: Props) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<FormState | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ kind: 'activate' | 'delete'; sector: SectorDefinition } | null>(null)
 
   async function load() {
     setLoading(true)
@@ -86,7 +104,6 @@ export function SectorManager({ token, onClose }: Props) {
   }
 
   async function activateTemplate(sector: SectorDefinition) {
-    if (!window.confirm('هل تريد إضافة قطاع ' + sector.name + ' إلى الموقع؟\nسيتم فتحه مع الرتب والثيم والوصف الجاهز.')) return
     setMessage('')
     const res = await fetch('/api/sectors', {
       method: 'POST',
@@ -98,6 +115,7 @@ export function SectorManager({ token, onClose }: Props) {
       setMessage(data.error || 'تعذر إضافة القطاع')
       return
     }
+    setConfirmAction(null)
     setMessage('تم فتح القطاع وإضافته للموقع ✓')
     await refreshAfterChange()
   }
@@ -123,7 +141,6 @@ export function SectorManager({ token, onClose }: Props) {
   }
 
   async function deleteSector(sector: SectorDefinition) {
-    if (!window.confirm('هل أنت متأكد من حذف قطاع ' + sector.name + ' نهائياً؟')) return
     setMessage('')
 
     const res = await fetch('/api/sectors', {
@@ -136,6 +153,7 @@ export function SectorManager({ token, onClose }: Props) {
       setMessage(data.error || 'تعذر حذف القطاع')
       return
     }
+    setConfirmAction(null)
     setMessage('تم حذف القطاع ✓')
     await refreshAfterChange()
   }
@@ -158,7 +176,8 @@ export function SectorManager({ token, onClose }: Props) {
       arabicName: form.arabicName.trim() || form.name.trim(),
       description: form.description.trim(),
       tagline: form.tagline.trim(),
-      themeKey: form.themeKey,
+      themeKey: form.themeKey === 'custom' ? undefined : form.themeKey,
+      theme: form.themeKey === 'custom' ? { vars: form.customVars } : undefined,
       ranks: form.ranks
         .split('\n')
         .map((rank) => rank.trim())
@@ -237,7 +256,7 @@ export function SectorManager({ token, onClose }: Props) {
                       sector={sector}
                       onEdit={() => setForm(toForm(sector))}
                       onToggle={() => void toggleVisibility(sector)}
-                      onDelete={() => void deleteSector(sector)}
+                      onDelete={() => setConfirmAction({ kind: 'delete', sector })}
                     />
                   ))}
                 </div>
@@ -259,7 +278,7 @@ export function SectorManager({ token, onClose }: Props) {
                         key={sector.id}
                         sector={sector}
                         onEdit={() => setForm(toForm(sector))}
-                        onToggle={() => void (sector.is_template ? activateTemplate(sector) : toggleVisibility(sector))}
+                        onToggle={() => void (sector.is_template ? setConfirmAction({ kind: 'activate', sector }) : toggleVisibility(sector))}
                         onDelete={() => void deleteSector(sector)}
                         hidden
                       />
@@ -271,6 +290,39 @@ export function SectorManager({ token, onClose }: Props) {
           )}
         </NeonCard>
       </div>
+
+      {confirmAction ? (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-3" onClick={() => setConfirmAction(null)}>
+          <div className="w-full max-w-md" onClick={(event) => event.stopPropagation()}>
+            <NeonCard glow className="p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h4 className="font-heading text-lg font-extrabold text-foreground">
+                  {confirmAction.kind === 'delete' ? 'تأكيد حذف القطاع' : 'تأكيد إضافة القطاع'}
+                </h4>
+                <button type="button" onClick={() => setConfirmAction(null)} className="rounded-md border border-border p-2 text-muted-foreground"><X className="size-4" /></button>
+              </div>
+              <div className={cn('rounded-xl border p-4', confirmAction.kind === 'delete' ? 'border-destructive/30 bg-destructive/10' : 'border-primary/30 bg-primary/10')}>
+                <p className="font-heading text-sm font-extrabold text-foreground">{confirmAction.sector.arabic} — {confirmAction.sector.name}</p>
+                <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                  {confirmAction.kind === 'delete'
+                    ? 'سيتم حذف هذا القطاع نهائياً. هذا الإجراء لا يمكن التراجع عنه.'
+                    : 'سيتم تفعيل القطاع وإظهاره في الموقع مع الرتب والثيم والوصف الجاهز.'}
+                </p>
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmAction(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button>
+                <button
+                  type="button"
+                  onClick={() => void (confirmAction.kind === 'delete' ? deleteSector(confirmAction.sector) : activateTemplate(confirmAction.sector))}
+                  className={cn('rounded-lg border px-4 py-2 text-sm font-bold', confirmAction.kind === 'delete' ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-primary/40 bg-primary/10 text-primary')}
+                >
+                  {confirmAction.kind === 'delete' ? 'حذف القطاع' : 'إضافة القطاع'}
+                </button>
+              </div>
+            </NeonCard>
+          </div>
+        </div>
+      ) : null}
 
       {form ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3" onClick={() => setForm(null)}>
@@ -323,9 +375,59 @@ export function SectorManager({ token, onClose }: Props) {
                     {Object.entries(SECTOR_THEME_PRESETS).map(([key, preset]) => (
                       <option key={key} value={key}>{preset.label} — {preset.tagline}</option>
                     ))}
+                    <option value="custom">ثيم مخصص بالكامل</option>
                   </select>
                 </Field>
               </div>
+
+
+              {form.themeKey === 'custom' ? (
+                <div className="mt-3 rounded-xl border border-primary/25 bg-background/45 p-4">
+                  <div className="mb-3">
+                    <h5 className="font-heading text-sm font-extrabold text-foreground">ألوان القطاع المخصصة</h5>
+                    <p className="mt-1 text-[11px] text-muted-foreground">اختر الألوان بحرية. المعاينة تتحدث مباشرة قبل الحفظ.</p>
+                  </div>
+                  <div
+                    className="mb-4 rounded-xl border p-4"
+                    style={{
+                      background: form.customVars['--background'],
+                      borderColor: form.customVars['--border'],
+                      color: form.customVars['--primary'],
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="size-9 rounded-lg border" style={{ background: form.customVars['--card'], borderColor: form.customVars['--primary'] }} />
+                      <div>
+                        <p className="font-heading text-sm font-extrabold">معاينة الثيم</p>
+                        <p className="text-[11px]" style={{ color: form.customVars['--neon'] }}>لون أساسي • نيون • خلفية • بطاقات</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {([
+                      ['--background','الخلفية'],
+                      ['--card','البطاقات'],
+                      ['--primary','اللون الأساسي'],
+                      ['--neon','النيون'],
+                      ['--accent','اللون المساند'],
+                      ['--border','الحدود'],
+                    ] as const).map(([key,label]) => (
+                      <label key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2">
+                        <span className="text-xs font-bold text-muted-foreground">{label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] text-muted-foreground">{form.customVars[key]}</span>
+                          <input
+                            type="color"
+                            value={form.customVars[key]}
+                            onChange={(event) => setForm({ ...form, customVars: { ...form.customVars, [key]: event.target.value, ...(key === '--primary' ? { '--ring': event.target.value } : {}) } })}
+                            className="h-8 w-11 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                          />
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-3">
                 <Field label="وصف الثيم / العنوان الصغير">
