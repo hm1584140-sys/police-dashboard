@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { token, username, action, newUsername, newPassword, role, discordName, reason, permissions } = await req.json()
+    const { token, username, action, newUsername, newPassword, role, discordName, reason, permissions, durationMinutes, banScope } = await req.json()
     const requester = await requireAccess(token)
     if (!requester) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
@@ -43,8 +43,11 @@ export async function PATCH(req: Request) {
       if (!hasPermission(requester, 'accounts.ban')) return NextResponse.json({ error: 'ليس لديك صلاحية الباند' }, { status: 403 })
       if (target === requester.username) return NextResponse.json({ error: 'لا يمكنك تبنيد حسابك' }, { status: 400 })
       if (target === 'owner') return NextResponse.json({ error: 'حساب المالك محمي من الباند' }, { status: 400 })
-      await setAccountBan(target, action === 'ban', String(reason ?? ''), requester.username)
-      await writeAuditLog(requester, action === 'ban' ? 'account_ban' : 'account_unban', 'account', target, { reason: String(reason ?? '') })
+      await setAccountBan(target, action === 'ban', String(reason ?? ''), requester.username, {
+        durationMinutes: action === 'ban' ? Number(durationMinutes) || null : null,
+        scope: banScope === 'discord' ? 'discord' : 'account',
+      })
+      await writeAuditLog(requester, action === 'ban' ? 'account_ban' : 'account_unban', 'account', target, { reason: String(reason ?? ''), durationMinutes: Number(durationMinutes) || null, scope: banScope === 'discord' ? 'discord' : 'account' })
       return NextResponse.json({ ok: true })
     }
 
