@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, type CSSProperties, type PointerEvent } from 'react'
-import { Shield, Plus, Trash2, Users } from 'lucide-react'
+import { Shield, Plus, Trash2, Users, Table2, LayoutList, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PageDefinition } from '@/lib/page-types'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
@@ -87,6 +87,8 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
   const [loading, setLoading] = useState(true)
   const [widths, setWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS)
   const [customColumns, setCustomColumns] = useState<RosterColumn[]>([])
+  const [viewMode,setViewMode]=useState<'classic'|'sheet'>('classic')
+  const [addChoiceOpen,setAddChoiceOpen]=useState(false)
 
   // Load all officers from Supabase on mount
   useEffect(() => {
@@ -204,8 +206,10 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
     await updateOfficer(id, { certs: newCerts })
   }
 
-  async function addOfficer() {
+  async function addOfficer(mode:'classic'|'sheet' = viewMode) {
     if (!editable) return
+    setViewMode(mode)
+    setAddChoiceOpen(false)
     const tempId = `temp-${crypto.randomUUID()}`
     const newOfficer = makeOfficer({ id: tempId })
     setRosters((prev) => ({
@@ -337,16 +341,22 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
               <Pill tone="muted">
                 {rows.length} {rows.length === 1 ? 'فرد' : 'أفراد'}
               </Pill>
-              {editable ? (
-                <button
-                  type="button"
-                  onClick={addOfficer}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 font-heading text-sm font-bold text-primary transition-colors hover:bg-primary/25"
-                >
-                  <Plus className="size-4" />
-                  إضافة فرد
-                </button>
-              ) : null}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background/40">
+                  <button type="button" onClick={()=>setViewMode('classic')} className={cn('inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold',viewMode==='classic'?'bg-primary/15 text-primary':'text-muted-foreground')}><LayoutList className="size-3.5"/> الحالي</button>
+                  <button type="button" onClick={()=>setViewMode('sheet')} className={cn('inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold',viewMode==='sheet'?'bg-primary/15 text-primary':'text-muted-foreground')}><Table2 className="size-3.5"/> Sheets</button>
+                </div>
+                {editable ? (
+                  <button
+                    type="button"
+                    onClick={()=>setAddChoiceOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 font-heading text-sm font-bold text-primary transition-colors hover:bg-primary/25"
+                  >
+                    <Plus className="size-4" />
+                    إضافة فرد
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -357,7 +367,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
           ) : (
             <div className="overflow-x-auto scrollbar-thin">
               <table
-                className="table-fixed border-collapse text-right"
+                className={cn('table-fixed border-collapse text-right',viewMode==='sheet'&&'text-[11px]')}
                 style={{ width: tableWidth }}
               >
                 <colgroup>
@@ -368,11 +378,16 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                   <col style={{ width: ACTIONS_W }} />
                 </colgroup>
                 <thead>
+                  {viewMode==='sheet'?<tr className="border-b border-border bg-muted/20">
+                    {COLUMNS.map((col,index)=><th key={'letter-'+col.key} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+index)}</th>)}
+                    {customColumns.map((col,index)=><th key={'letter-custom-'+col.id} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+COLUMNS.length+index)}</th>)}
+                    <th className="px-1 py-1"/>
+                  </tr>:null}
                   <tr className="border-b border-border bg-background/40">
                     {COLUMNS.map((col) => (
                       <th
                         key={col.key}
-                        className="relative whitespace-nowrap px-3 py-3 font-mono text-[11px] font-bold uppercase tracking-wider text-primary"
+                        className={cn('relative whitespace-nowrap font-mono font-bold uppercase tracking-wider text-primary',viewMode==='sheet'?'border-l border-border/70 bg-background/65 px-2 py-2 text-[10px]':'px-3 py-3 text-[11px]')}
                       >
                         <span className="block truncate pl-2">{col.label}</span>
                         <div
@@ -416,7 +431,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                           idx % 2 === 1 && 'bg-background/20',
                         )}
                       >
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.badge}
                             onChange={(v) => updateOfficer(o.id, { badge: v })}
@@ -424,7 +439,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.discord}
                             onChange={(v) => updateOfficer(o.id, { discord: v })}
@@ -432,7 +447,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <div className="flex flex-col items-center gap-1">
                             <InsigniaIcon value={o.insignia} sector={active} size={38}/>
                             <select
@@ -447,7 +462,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             </select>
                           </div>
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <SelectCell
                             value={o.rank}
                             onChange={(v) => updateOfficer(o.id, { rank: v })}
@@ -456,7 +471,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <div className="flex items-center justify-center gap-2">
                             <ServiceStripeIcon
                               count={Number(o.ys) || 0}
@@ -479,7 +494,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             </select>
                           </div>
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <SelectCell
                             value={o.section}
                             onChange={(v) => updateOfficer(o.id, { section: v })}
@@ -487,7 +502,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.responsibility}
                             onChange={(v) => updateOfficer(o.id, { responsibility: v })}
@@ -495,7 +510,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.adminRank}
                             onChange={(v) => updateOfficer(o.id, { adminRank: v })}
@@ -503,7 +518,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.squads}
                             onChange={(v) => updateOfficer(o.id, { squads: v })}
@@ -511,7 +526,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <select
                             value={o.status}
                             onChange={(e) =>
@@ -531,7 +546,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             ))}
                           </select>
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             type="number"
                             value={o.points}
@@ -539,7 +554,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             type="number"
                             value={o.strikes}
@@ -550,7 +565,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             )}
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <TextCell
                             value={o.name}
                             onChange={(v) => updateOfficer(o.id, { name: v })}
@@ -558,7 +573,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             section="roster"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                           <div className="flex flex-wrap gap-1.5">
                             {certificationKeys.map((cert) => {
                               const on = o.certs[cert]
@@ -596,7 +611,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                           }
                           if (column.kind === 'select') {
                             return (
-                              <td key={column.id} className="px-2 py-2">
+                              <td key={column.id} className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                                 <select value={value} onChange={(e) => void saveCustom(e.target.value)} disabled={!editable} className="w-full rounded-md border border-border bg-background/50 px-2 py-1.5 text-xs text-foreground outline-none disabled:opacity-50">
                                   <option value="">—</option>
                                   {(column.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
@@ -605,7 +620,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                             )
                           }
                           return (
-                            <td key={column.id} className="px-2 py-2">
+                            <td key={column.id} className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
                               <TextCell type={column.kind === 'number' ? 'number' : 'text'} value={value} onChange={(next) => void saveCustom(next)} placeholder="—" section="roster" />
                             </td>
                           )
@@ -630,6 +645,23 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
             </div>
           )}
         </NeonCard>
+      {addChoiceOpen?(
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/75 p-3" onClick={()=>setAddChoiceOpen(false)}>
+          <div className="w-full max-w-lg" onClick={(e)=>e.stopPropagation()}>
+            <NeonCard glow className="p-5">
+              <div className="mb-4 flex items-center justify-between"><div><h4 className="font-heading text-lg font-extrabold">كيف تريد إضافة الفرد؟</h4><p className="mt-1 text-xs text-muted-foreground">البيانات نفسها، فقط طريقة العرض والتحرير تختلف.</p></div><button type="button" onClick={()=>setAddChoiceOpen(false)} className="rounded border border-border p-2"><X className="size-4"/></button></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={()=>void addOfficer('classic')} className="rounded-xl border border-border bg-background/40 p-4 text-right hover:border-primary/40 hover:bg-primary/5">
+                  <LayoutList className="mb-3 size-5 text-primary"/><p className="font-heading font-extrabold">النظام الحالي</p><p className="mt-1 text-xs text-muted-foreground">نفس كشف القوات الموجود حالياً بكل الأيقونات والخيارات.</p>
+                </button>
+                <button type="button" onClick={()=>void addOfficer('sheet')} className="rounded-xl border border-primary/35 bg-primary/5 p-4 text-right hover:bg-primary/10">
+                  <Table2 className="mb-3 size-5 text-primary"/><p className="font-heading font-extrabold">نظام Google Sheets</p><p className="mt-1 text-xs text-muted-foreground">شبكة مضغوطة وخلايا مباشرة مع نفس الأفراد القدامى والجدد.</p>
+                </button>
+              </div>
+            </NeonCard>
+          </div>
+        </div>
+      ):null}
       </div>
     </div>
   )
