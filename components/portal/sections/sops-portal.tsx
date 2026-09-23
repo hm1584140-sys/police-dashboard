@@ -13,12 +13,17 @@ import {
   ChevronLeft,
   BookMarked,
   Lock,
+  Plus,
+  Copy,
+  Pencil,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NeonCard, Pill, StatCard, InfoBlock } from '@/components/portal/primitives'
 import { pursuitCapacity, robberyCapacity } from '@/lib/police-data'
 import { PAGE_ICON_MAP, type ContentBlock, type PageDefinition } from '@/lib/page-types'
-import { getSopsCopy } from '@/lib/sops-copy'
+import { getSopsCopy, setSopsCopy } from '@/lib/sops-copy'
+import { useAdmin } from '@/lib/admin-context'
 
 const SUB = [
   { id: 'general', label: 'القواعد العامة والولايات', icon: ScrollText },
@@ -44,7 +49,11 @@ function Extra({ text }: { text?: string }) {
 }
 
 export function SopsPortal({ page }: { page?: PageDefinition }) {
+  const { token, can } = useAdmin()
+  const editable = Boolean(token && can('pages.manage') && page?.id)
   const [sub, setSub] = useState<string>('general')
+  const [sectionEditor, setSectionEditor] = useState<{ id?: string; title: string; content: string } | null>(null)
+  const [inlineEdit, setInlineEdit] = useState<{ key: string; value: string } | null>(null)
   const copy = useMemo(() => getSopsCopy(page?.blocks), [page?.blocks])
   const customSections = useMemo(
     () => (page?.blocks ?? []).filter((block): block is CustomSection => block.type === 'sops-section'),
@@ -62,6 +71,48 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
     ],
     [customSections],
   )
+
+  async function saveBlocks(blocks: ContentBlock[]) {
+    if (!editable || !page || !token) return
+    const res = await fetch('/api/pages', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, ...page, blocks }),
+    })
+    if (res.ok) window.dispatchEvent(new CustomEvent('pd:pages-changed'))
+  }
+
+  async function saveCopyValue(key: string, value: string) {
+    if (!page) return
+    const next = setSopsCopy(page.blocks ?? [], { ...copy, [key]: value })
+    await saveBlocks(next)
+    setInlineEdit(null)
+  }
+
+  async function saveSectionEditor() {
+    if (!sectionEditor || !page) return
+    const existing = (page.blocks ?? []).filter((block) => block.type !== 'sops-section' || block.id !== sectionEditor.id)
+    const id = sectionEditor.id || 'sops-' + crypto.randomUUID()
+    const section: CustomSection = { type: 'sops-section', id, title: sectionEditor.title.trim() || 'قسم جديد', icon: 'ScrollText', content: sectionEditor.content }
+    await saveBlocks([...existing, section])
+    setSectionEditor(null)
+    setSub(id)
+  }
+
+  function snapshotCurrentSection() {
+    const builtInText: Record<string, string> = {
+      general: [copy.general_1, copy.general_2, copy.general_extra].filter(Boolean).join('\n\n'),
+      cuffs: [copy.cuffs_intro, copy.cuffs_items, copy.taser_intro, copy.taser_direct_intro, copy.taser_items, copy.cuffs_extra].filter(Boolean).join('\n\n'),
+      fire: [copy.fire_intro, copy.fire_items, copy.fire_extra].filter(Boolean).join('\n\n'),
+      arrest: [copy.arrest_intro, copy.miranda, copy.post_arrest, copy.arrest_extra].filter(Boolean).join('\n\n'),
+      pursuit: [copy.dispatch, copy.pit_intro, copy.pit_items, copy.pit_conditions, copy.pursuit_extra].filter(Boolean).join('\n\n'),
+      vehiclefire: [copy.vehicle_intro, copy.vehicle_cases, copy.vehicle_extra].filter(Boolean).join('\n\n'),
+      failsafe: [copy.failsafe_items, copy.foot_escape, copy.max_escape, copy.failsafe_extra].filter(Boolean).join('\n\n'),
+    }
+    const nav = navigation.find((item) => item.id === sub)
+    const custom = customSections.find((item) => item.id === sub)
+    setSectionEditor({ title: 'نسخة من ' + (nav?.label ?? 'قسم'), content: custom?.content ?? builtInText[sub] ?? '' })
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -89,7 +140,10 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
 
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         <NeonCard className="h-fit p-2 lg:sticky lg:top-36">
-          <p className="px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">أقسام البروتوكولات</p>
+          <div className="flex items-center justify-between px-3 py-2">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">أقسام البروتوكولات</p>
+            {editable ? <button type="button" onClick={() => setSectionEditor({ title: 'قسم جديد', content: '' })} title="إضافة قسم" className="inline-flex size-7 items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-primary"><Plus className="size-3.5" /></button> : null}
+          </div>
           <div className="flex flex-col gap-1">
             {navigation.map((s) => {
               const Icon = s.icon
@@ -107,7 +161,10 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         </NeonCard>
 
         <div className="min-w-0">
-          {sub === 'general' && <GeneralRules copy={copy} />}
+          {editable ? <div className="mb-3 flex justify-end gap-2">
+            <button type="button" onClick={snapshotCurrentSection} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary"><Copy className="size-3.5" /> نسخ هذا القسم</button>
+          </div> : null}
+          {sub === 'general' && <GeneralRules copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
           {sub === 'cuffs' && <CuffsTaser copy={copy} />}
           {sub === 'fire' && <FireArmed copy={copy} />}
           {sub === 'arrest' && <ArrestMiranda copy={copy} />}
@@ -120,6 +177,30 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
           )}
         </div>
       </div>
+      {sectionEditor ? (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/75 p-3" onClick={() => setSectionEditor(null)}>
+          <div className="w-full max-w-2xl" onClick={(e)=>e.stopPropagation()}>
+            <NeonCard glow className="p-5">
+              <div className="mb-4 flex items-center justify-between"><h4 className="font-heading text-lg font-extrabold">إضافة / تعديل قسم بروتوكول</h4><button type="button" onClick={()=>setSectionEditor(null)} className="rounded border border-border p-2"><X className="size-4"/></button></div>
+              <input value={sectionEditor.title} onChange={(e)=>setSectionEditor({...sectionEditor,title:e.target.value})} className="input-base mb-3" placeholder="اسم القسم"/>
+              <textarea value={sectionEditor.content} onChange={(e)=>setSectionEditor({...sectionEditor,content:e.target.value})} className="input-base min-h-72 resize-y" placeholder="محتوى القسم..."/>
+              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setSectionEditor(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button><button type="button" onClick={()=>void saveSectionEditor()} className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">حفظ القسم</button></div>
+            </NeonCard>
+          </div>
+        </div>
+      ) : null}
+
+      {inlineEdit ? (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/75 p-3" onClick={()=>setInlineEdit(null)}>
+          <div className="w-full max-w-2xl" onClick={(e)=>e.stopPropagation()}>
+            <NeonCard glow className="p-5">
+              <div className="mb-3 flex items-center gap-2"><Pencil className="size-4 text-primary"/><h4 className="font-heading font-extrabold">تعديل النص مباشرة</h4></div>
+              <textarea value={inlineEdit.value} onChange={(e)=>setInlineEdit({...inlineEdit,value:e.target.value})} className="input-base min-h-44 resize-y"/>
+              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setInlineEdit(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button><button type="button" onClick={()=>void saveCopyValue(inlineEdit.key,inlineEdit.value)} className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">حفظ النص</button></div>
+            </NeonCard>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -135,19 +216,19 @@ function CustomSopsSection({ section }: { section: CustomSection }) {
   )
 }
 
-function GeneralRules({ copy }: { copy: Copy }) {
+function GeneralRules({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="القواعد العامة والولايات">
-        <p>{copy.general_1}</p>
-        <p className="mt-3">{copy.general_2}</p>
+        <p onDoubleClick={() => editable && onEdit?.('general_1', copy.general_1)} className={editable ? 'cursor-text' : ''}>{copy.general_1}</p>
+        <p onDoubleClick={() => editable && onEdit?.('general_2', copy.general_2)} className={editable ? 'mt-3 cursor-text' : 'mt-3'}>{copy.general_2}</p>
       </InfoBlock>
       <div className="grid gap-4 sm:grid-cols-3">
         <NeonCard className="p-4 text-center"><p className="font-heading text-lg font-bold text-primary">SASP</p><p className="text-xs text-muted-foreground">الخطوط السريعة (بدعوة خاصة)</p></NeonCard>
         <NeonCard className="p-4 text-center"><p className="font-heading text-lg font-bold text-primary">LSPD</p><p className="text-xs text-muted-foreground">مشن روو والمدينة</p></NeonCard>
         <NeonCard className="p-4 text-center"><p className="font-heading text-lg font-bold text-primary">BCSO</p><p className="text-xs text-muted-foreground">الضواحي والمناطق الريفية</p></NeonCard>
       </div>
-      <Extra text={copy.general_extra} />
+      <div onDoubleClick={() => editable && onEdit?.('general_extra', copy.general_extra)} className={editable ? 'cursor-text' : ''}><Extra text={copy.general_extra} /></div>
     </div>
   )
 }
