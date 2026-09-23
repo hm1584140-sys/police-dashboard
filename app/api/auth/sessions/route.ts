@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server'
 import { deleteSession, deleteSessionsForUser, getAllSessions, getSession } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
-async function requireOwner(token: string | null) {
+async function requireAccess(token: string | null) {
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'accounts.view') ? session : null
 }
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  if (!(await requireOwner(searchParams.get('token')))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+  if (!(await requireAccess(searchParams.get('token')))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
   return NextResponse.json(await getAllSessions())
 }
 
 export async function DELETE(req: Request) {
   try {
     const { token, targetToken, username } = await req.json()
-    const owner = await requireOwner(token)
+    const owner = await requireAccess(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (targetToken) await deleteSession(String(targetToken))
     if (username) await deleteSessionsForUser(String(username).trim().toLowerCase())
