@@ -5,6 +5,7 @@ export type SectorId = string
 export type SectorDefinition = {
   id: SectorId
   name: string
+  code: string
   arabic: string
   tagline: string
   description: string
@@ -115,6 +116,7 @@ export function getBuiltinSectors(): SectorDefinition[] {
     return {
       id,
       name: t.name,
+      code: id,
       arabic: t.arabic,
       tagline: t.tagline,
       description: SYSTEM_DESCRIPTIONS[id] ?? '',
