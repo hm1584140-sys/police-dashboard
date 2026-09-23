@@ -228,7 +228,7 @@ function PageEditor({
   onClose: () => void
 }) {
   const isSops = page.slug === 'sops' || page.renderer === 'sops'
-  const canEditBlocks = !isSops
+  const canEditBlocks = !isSops && page.renderer === 'cms'
   const update = (patch: Partial<PageDefinition>) => setPage({ ...page, ...patch })
 
   return (
@@ -314,7 +314,7 @@ function PageEditor({
             </div>
           ) : (
             <div className="mt-5 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              هذه قائمة بنظام متخصص؛ يمكنك تغيير بياناتها من أدوات الإدارة الخاصة بها، مثل كشف القوات أو المخالفات أو اللاسلكي.
+              هذه قائمة بنظام متخصص. التعديل يتم من داخل نفس القائمة بشكل مباشر حتى تشوف النتيجة فوراً، بدل حقول داخلية مبهمة.
             </div>
           )}
 
@@ -548,7 +548,7 @@ function BlockEditor({
   onDelete: () => void
   onMove: (direction: number) => void
 }) {
-  if (block.type === 'sops-copy' || block.type === 'sops-section') return null
+  if (block.type === 'sops-copy' || block.type === 'sops-section' || block.type === 'custom-list-config') return null
 
   return (
     <div className="rounded-xl border border-border bg-background/30 p-4">
