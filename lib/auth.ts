@@ -13,6 +13,8 @@ export type Account = {
   ban_reason: string
   banned_at?: string | null
   banned_by?: string | null
+  banned_until?: string | null
+  ban_scope?: 'account' | 'discord'
   created_at?: string
   updated_at?: string
   last_login_at?: string | null
@@ -29,6 +31,7 @@ export type SessionInfo = {
   login_at: number
   is_banned?: boolean
   ban_reason?: string
+  banned_until?: string | null
   permissions: Permission[]
 }
 
@@ -77,7 +80,7 @@ export async function findAccount(username: string, password: string): Promise<A
 
   const { data, error } = await db()
     .from('pd_accounts')
-    .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
+    .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,banned_until,ban_scope,created_at,updated_at,last_login_at,permissions')
     .eq('username', clean)
     .maybeSingle()
 
@@ -99,6 +102,8 @@ export async function findAccount(username: string, password: string): Promise<A
     role: data.role as Role,
     discord_name: data.discord_name ?? '',
     ban_reason: data.ban_reason ?? '',
+    banned_until: data.banned_until ?? null,
+    ban_scope: (data.ban_scope === 'discord' ? 'discord' : 'account'),
     permissions: normalizePermissions(data.permissions),
   } as Account
 }
@@ -138,9 +143,16 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
 
   const { data: account } = await db()
     .from('pd_accounts')
-    .select('is_banned,ban_reason,permissions')
+    .select('is_banned,ban_reason,banned_until,permissions')
     .eq('username', session.username)
     .maybeSingle()
+
+  if (account?.is_banned && account.banned_until && new Date(account.banned_until).getTime() <= Date.now()) {
+    await db().from('pd_accounts').update({ is_banned: false, ban_reason: '', banned_at: null, banned_by: null, banned_until: null, updated_at: new Date().toISOString() }).eq('username', session.username)
+    account.is_banned = false
+    account.ban_reason = ''
+    account.banned_until = null
+  }
 
   if (account?.is_banned) {
     return {
@@ -149,6 +161,7 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
       discord_name: session.discord_name ?? '',
       is_banned: true,
       ban_reason: account.ban_reason ?? '',
+      banned_until: account.banned_until ?? null,
       permissions: normalizePermissions(account.permissions),
     }
   }
@@ -159,6 +172,7 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
     discord_name: session.discord_name ?? '',
     is_banned: false,
     ban_reason: '',
+    banned_until: null,
     permissions: normalizePermissions(account?.permissions),
   }
 }
@@ -184,7 +198,7 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
   const usernames = [...new Set(sessions.map((row) => String(row.username ?? '')).filter(Boolean))]
   const { data: accounts } = await db()
     .from('pd_accounts')
-    .select('username,is_banned,ban_reason')
+    .select('username,is_banned,ban_reason,banned_until,permissions')
     .in('username', usernames)
 
   const accountMap = new Map(
@@ -201,6 +215,8 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
       login_at: Number(row.login_at ?? 0),
       is_banned: Boolean(account?.is_banned),
       ban_reason: String(account?.ban_reason ?? ''),
+      banned_until: account?.banned_until ? String(account.banned_until) : null,
+      permissions: normalizePermissions(account?.permissions),
     }
   })
 }
@@ -208,7 +224,7 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
 export async function getAllAccounts(): Promise<PublicAccount[]> {
   const { data } = await db()
     .from('pd_accounts')
-    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
+    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,banned_until,ban_scope,created_at,updated_at,last_login_at,permissions')
     .order('created_at', { ascending: true })
 
   return (data ?? []).map((row) => ({
@@ -216,6 +232,8 @@ export async function getAllAccounts(): Promise<PublicAccount[]> {
     role: row.role as Role,
     discord_name: row.discord_name ?? '',
     ban_reason: row.ban_reason ?? '',
+    banned_until: row.banned_until ?? null,
+    ban_scope: row.ban_scope === 'discord' ? 'discord' : 'account',
     permissions: normalizePermissions(row.permissions),
   })) as PublicAccount[]
 }
@@ -241,9 +259,11 @@ export async function createAccount(input: {
       discord_name: input.discordName?.trim() ?? '',
       is_banned: false,
       ban_reason: '',
+      banned_until: null,
+      ban_scope: 'account',
       permissions: normalizePermissions(input.permissions),
     })
-    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
+    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,banned_until,ban_scope,created_at,updated_at,last_login_at,permissions')
     .single()
 
   if (error) throw new Error(error.code === '23505' ? 'username_exists' : error.message)
@@ -253,6 +273,8 @@ export async function createAccount(input: {
     role: data.role as Role,
     discord_name: data.discord_name ?? '',
     ban_reason: data.ban_reason ?? '',
+    banned_until: data.banned_until ?? null,
+    ban_scope: data.ban_scope === 'discord' ? 'discord' : 'account',
     permissions: normalizePermissions(data.permissions),
   } as PublicAccount
 }
@@ -300,18 +322,42 @@ export async function setAccountBan(
   banned: boolean,
   reason: string,
   bannedBy: string,
+  options: { durationMinutes?: number | null; scope?: 'account' | 'discord' } = {},
 ) {
   const clean = username.trim().toLowerCase()
-  const { error } = await db().from('pd_accounts').update({
+  const scope = options.scope === 'discord' ? 'discord' : 'account'
+  const duration = options.durationMinutes && options.durationMinutes > 0 ? Math.min(options.durationMinutes, 60 * 24 * 365) : null
+  const bannedUntil = banned && duration ? new Date(Date.now() + duration * 60_000).toISOString() : null
+
+  const targetQuery = db().from('pd_accounts').select('username,discord_name').eq('username', clean).maybeSingle()
+  const { data: target, error: targetError } = await targetQuery
+  if (targetError || !target) throw new Error(targetError?.message || 'account_not_found')
+
+  const patch = {
     is_banned: banned,
     ban_reason: banned ? reason.trim() : '',
     banned_at: banned ? new Date().toISOString() : null,
     banned_by: banned ? bannedBy : null,
+    banned_until: bannedUntil,
+    ban_scope: banned ? scope : 'account',
     updated_at: new Date().toISOString(),
-  }).eq('username', clean)
+  }
 
-  if (error) throw new Error(error.message)
-  if (banned) await deleteSessionsForUser(clean)
+  let affected = [clean]
+  if (banned && scope === 'discord' && target.discord_name?.trim()) {
+    const { data: linked, error: linkedError } = await db().from('pd_accounts').select('username').eq('discord_name', target.discord_name.trim())
+    if (linkedError) throw new Error(linkedError.message)
+    affected = (linked ?? []).map((row) => String(row.username))
+    const { error } = await db().from('pd_accounts').update(patch).in('username', affected)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await db().from('pd_accounts').update(patch).eq('username', clean)
+    if (error) throw new Error(error.message)
+  }
+
+  if (banned) {
+    await Promise.all(affected.map((name) => deleteSessionsForUser(name)))
+  }
 }
 
 export async function getBanAppeals() {
