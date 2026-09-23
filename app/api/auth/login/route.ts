@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     const token = await createSession(account, cleanDiscord)
     await writeAuditLog({ username: account.username, role: account.role, discord_name: cleanDiscord }, 'login', 'session', token, { source: 'website' })
-    return NextResponse.json({ token, username: account.username, role: account.role, discordName: cleanDiscord })
+    return NextResponse.json({ token, username: account.username, role: account.role, discordName: cleanDiscord, permissions: account.permissions })
   } catch {
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
