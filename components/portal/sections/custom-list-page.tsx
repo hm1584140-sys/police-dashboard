@@ -292,11 +292,11 @@ export function CustomListPage({ page }: { page: PageDefinition }) {
             {list?.columns.some((c)=>c.hidden)?<button type="button" onClick={()=>void showAllColumns()} className="text-[10px] font-bold text-primary">إظهار الأعمدة المخفية</button>:null}
           </div>
           {editable?<div className="flex flex-wrap items-center gap-1">
-            <button type="button" onClick={()=>void addRow()} className="sheet-btn"><Rows3 className="size-3.5"/> صف</button>
-            <button type="button" onClick={()=>void insertColumn(list?.columns.length??0)} className="sheet-btn"><Columns3 className="size-3.5"/> عمود</button>
-            <button type="button" disabled={!selectedRows.size} onClick={()=>setGroupOpen(true)} className="sheet-btn disabled:opacity-30"><FolderPlus className="size-3.5"/> تجميع</button>
-            <button type="button" disabled={!selectedRows.size} onClick={()=>void ungroupSelected()} className="sheet-btn disabled:opacity-30"><Minus className="size-3.5"/> فك</button>
-            <button type="button" disabled={!selectedRows.size} onClick={()=>void removeSelectedRows()} className="sheet-btn text-destructive disabled:opacity-30"><Trash2 className="size-3.5"/> حذف</button>
+            <button type="button" onClick={()=>void addRow()} className="inline-flex items-center gap-1 rounded-md border border-border bg-background/50 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-primary/40 hover:text-primary"><Rows3 className="size-3.5"/> صف</button>
+            <button type="button" onClick={()=>void insertColumn(list?.columns.length??0)} className="inline-flex items-center gap-1 rounded-md border border-border bg-background/50 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-primary/40 hover:text-primary"><Columns3 className="size-3.5"/> عمود</button>
+            <button type="button" disabled={!selectedRows.size} onClick={()=>setGroupOpen(true)} className="inline-flex items-center gap-1 rounded-md border border-border bg-background/50 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-30"><FolderPlus className="size-3.5"/> تجميع</button>
+            <button type="button" disabled={!selectedRows.size} onClick={()=>void ungroupSelected()} className="inline-flex items-center gap-1 rounded-md border border-border bg-background/50 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-30"><Minus className="size-3.5"/> فك</button>
+            <button type="button" disabled={!selectedRows.size} onClick={()=>void removeSelectedRows()} className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-[11px] font-bold text-destructive hover:bg-destructive/10 disabled:opacity-30"><Trash2 className="size-3.5"/> حذف</button>
           </div>:null}
         </div>
 
