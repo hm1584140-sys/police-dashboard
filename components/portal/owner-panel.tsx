@@ -124,7 +124,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [messageForm, setMessageForm] = useState({ audience: 'all' as OwnerMessage['audience'], recipient: '', title: '', body: '' })
 
   async function loadCore(force = false) {
-    const freshCache = ownerPanelCache && Date.now() - ownerPanelCache.at < 30_000
+    const freshCache = isOwner && ownerPanelCache && Date.now() - ownerPanelCache.at < 30_000
     if (!force && freshCache && ownerPanelCache) {
       setAccounts(ownerPanelCache.accounts)
       setSessions(ownerPanelCache.sessions)
@@ -138,29 +138,36 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     setLoading(true)
     if (force) setMessage('')
     try {
-      const [aRes, sRes, pRes, mRes, lRes] = await Promise.all([
-        fetch('/api/auth/accounts?token=' + encodeURIComponent(token)),
-        fetch('/api/auth/sessions?token=' + encodeURIComponent(token)),
-        fetch('/api/auth/appeals?token=' + encodeURIComponent(token)),
-        fetch('/api/messages?token=' + encodeURIComponent(token)),
-        fetch('/api/audit?token=' + encodeURIComponent(token) + '&limit=250'),
-      ])
-      if (!aRes.ok || !sRes.ok || !pRes.ok || !mRes.ok || !lRes.ok) throw new Error()
+      async function read(url: string, allowed: boolean) {
+        if (!allowed) return []
+        const res = await fetch(url)
+        if (!res.ok) return []
+        return res.json()
+      }
+
       const [nextAccounts, nextSessions, nextAppeals, nextMessages, nextLogs] = await Promise.all([
-        aRes.json(), sRes.json(), pRes.json(), mRes.json(), lRes.json(),
+        read('/api/auth/accounts?token=' + encodeURIComponent(token), can('accounts.view')),
+        read('/api/auth/sessions?token=' + encodeURIComponent(token), can('accounts.view')),
+        read('/api/auth/appeals?token=' + encodeURIComponent(token), can('appeals.manage')),
+        read('/api/messages?token=' + encodeURIComponent(token), can('messages.manage')),
+        read('/api/audit?token=' + encodeURIComponent(token) + '&limit=250', can('logs.view')),
       ])
+
       setAccounts(nextAccounts)
       setSessions(nextSessions)
       setAppeals(nextAppeals)
       setMessages(nextMessages)
       setLogs(nextLogs)
-      ownerPanelCache = {
-        accounts: nextAccounts,
-        sessions: nextSessions,
-        appeals: nextAppeals,
-        messages: nextMessages,
-        logs: nextLogs,
-        at: Date.now(),
+
+      if (isOwner) {
+        ownerPanelCache = {
+          accounts: nextAccounts,
+          sessions: nextSessions,
+          appeals: nextAppeals,
+          messages: nextMessages,
+          logs: nextLogs,
+          at: Date.now(),
+        }
       }
     } catch {
       setMessage('تعذر تحميل بعض بيانات الإدارة')
@@ -267,10 +274,10 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
             <div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-5 text-primary" />
-                <h3 className="font-heading text-xl font-extrabold text-foreground">مركز تحكم المالك</h3>
-                <Pill tone="neon">OWNER</Pill>
+                <h3 className="font-heading text-xl font-extrabold text-foreground">مركز التحكم الإداري</h3>
+                <Pill tone="neon">{isOwner ? 'OWNER' : ROLE_LABEL[currentRole]}</Pill>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">إدارة الحسابات، الجلسات، الباندات، الطلبات، الرسائل، القطاعات والمحتوى.</p>
+              <p className="mt-1 text-xs text-muted-foreground">تظهر لك فقط الأدوات التي منحك المالك صلاحيتها.</p>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => void loadCore(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted/40">
@@ -282,15 +289,15 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
 
           <div className="mb-5 flex flex-wrap gap-1 overflow-x-auto rounded-lg border border-border bg-background/40 p-1">
             {([
-              ['overview','الرئيسية', ShieldCheck],
-              ['accounts','الحسابات', Users],
-              ['messages','الرسائل', MessageSquare],
-              ['appeals','طلبات فك الباند', Mail],
-              ['pages','القوائم والمحتوى', FileCog],
-              ['sectors','القطاعات', ShieldCheck],
-              ['roster','أعمدة كشف القوات', FileCog],
-              ['logs','السجلات', RefreshCw],
-            ] as const).map(([id,label,Icon]) => (
+              ['overview','الرئيسية', ShieldCheck, true],
+              ['accounts','الحسابات', Users, can('accounts.view')],
+              ['messages','الرسائل', MessageSquare, can('messages.manage')],
+              ['appeals','طلبات فك الباند', Mail, can('appeals.manage')],
+              ['pages','القوائم والمحتوى', FileCog, can('pages.manage')],
+              ['sectors','القطاعات', ShieldCheck, can('sectors.manage')],
+              ['roster','أعمدة كشف القوات', FileCog, can('roster.manage')],
+              ['logs','السجلات', RefreshCw, can('logs.view')],
+            ] as const).filter(([, , , allowed]) => allowed).map(([id,label,Icon]) => (
               <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-bold', tab === id ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/30')}>
                 <Icon className="size-3.5" /> {label}
               </button>
@@ -303,17 +310,17 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
 
           {tab === 'overview' ? (
             <div className="grid gap-4 md:grid-cols-3">
-              <Stat label="الحسابات" value={accounts.length} />
-              <Stat label="المسجلون الآن" value={onlineCount} />
-              <Stat label="المبندون" value={bannedCount} tone="danger" />
-              <Stat label="طلبات فك الباند" value={pendingAppeals} tone="gold" />
-              <button type="button" onClick={() => setTab('accounts')} className="rounded-xl border border-border bg-background/40 p-5 text-right hover:bg-muted/20">
+              {can('accounts.view') ? <Stat label="الحسابات" value={accounts.length} /> : null}
+              {can('accounts.view') ? <Stat label="المسجلون الآن" value={onlineCount} /> : null}
+              {can('accounts.view') ? <Stat label="المبندون" value={bannedCount} tone="danger" /> : null}
+              {can('appeals.manage') ? <Stat label="طلبات فك الباند" value={pendingAppeals} tone="gold" /> : null}
+              {can('accounts.create') ? <button type="button" onClick={() => setTab('accounts')} className="rounded-xl border border-border bg-background/40 p-5 text-right hover:bg-muted/20">
                 <UserPlus className="mb-3 size-5 text-primary" /><p className="font-heading font-bold">إنشاء حساب جديد</p><p className="mt-1 text-xs text-muted-foreground">اسم مستخدم + كلمة مرور + Discord + الصلاحية</p>
-              </button>
-              <button type="button" onClick={() => { setTab('messages'); setComposerOpen(true) }} className="rounded-xl border border-border bg-background/40 p-5 text-right hover:bg-muted/20">
+              </button> : null}
+              {can('messages.manage') ? <button type="button" onClick={() => { setTab('messages'); setComposerOpen(true) }} className="rounded-xl border border-border bg-background/40 p-5 text-right hover:bg-muted/20">
                 <MessageSquare className="mb-3 size-5 text-primary" /><p className="font-heading font-bold">إرسال إعلان</p><p className="mt-1 text-xs text-muted-foreground">للموجودين أو المبندين أو شخص محدد أو الجميع</p>
-              </button>
-              <div className="md:col-span-3 rounded-xl border border-border bg-background/40 p-4">
+              </button> : null}
+              {can('accounts.view') ? <div className="md:col-span-3 rounded-xl border border-border bg-background/40 p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="font-heading font-bold text-foreground">المسجلون دخول الآن</h4>
                   <Pill tone="neon">{onlineCount}</Pill>
@@ -322,12 +329,12 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                   {sessions.map((session) => (
                     <div key={session.token} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                       <div><p className="text-sm font-bold text-foreground">{session.username}</p><p className="text-[11px] text-muted-foreground">{session.discord_name || 'بدون Discord'} • {ROLE_LABEL[session.role]}</p></div>
-                      <button type="button" onClick={() => void ban(session.username, true, 'تم طرد الحساب بواسطة المالك')} className="rounded-md border border-destructive/40 bg-destructive/10 p-1.5 text-destructive"><UserX className="size-3.5" /></button>
+                      <button type="button" onClick={() => void ban(session.username, true, 'تم طرد الحساب بواسطة الإدارة')} className="rounded-md border border-destructive/40 bg-destructive/10 p-1.5 text-destructive"><UserX className="size-3.5" /></button>
                     </div>
                   ))}
                   {!sessions.length ? <p className="text-xs text-muted-foreground">لا يوجد أحد مسجل حالياً.</p> : null}
                 </div>
-              </div>
+              </div> : null}
             </div>
           ) : null}
 
@@ -335,7 +342,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="font-heading text-base font-bold text-foreground">إدارة الحسابات</h4>
-                <button type="button" onClick={() => setAccountForm({ username: '', password: '', discordName: '', role: 'commander', permissions: [] })} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إنشاء حساب</button>
+                {can('accounts.create') ? <button type="button" onClick={() => setAccountForm({ username: '', password: '', discordName: '', role: 'commander', permissions: [] })} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إنشاء حساب</button> : null}
               </div>
               <div className="grid gap-2">
                 {accounts.map((account) => (
@@ -347,11 +354,11 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                         <span className="text-xs text-muted-foreground">{account.discord_name || 'بدون Discord'}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        <button type="button" onClick={() => setEditing(account)} className="rounded-md border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted/30">تعديل</button>
-                        {account.is_banned
+                        {can('accounts.edit') ? <button type="button" onClick={() => setEditing(account)} className="rounded-md border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted/30">تعديل</button> : null}
+                        {can('accounts.ban') && account.username !== currentUsername && account.username !== 'owner' ? (account.is_banned
                           ? <button type="button" onClick={() => void ban(account.username, false)} className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary">فك الباند</button>
-                          : <button type="button" onClick={() => { setBanTarget(account); setBanReason('') }} className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-bold text-destructive"><Ban className="mr-1 inline size-3.5" />تبنيد</button>}
-                        <button type="button" onClick={() => setDeleteTarget(account)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                          : <button type="button" onClick={() => { setBanTarget(account); setBanReason('') }} className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-bold text-destructive"><Ban className="mr-1 inline size-3.5" />تبنيد</button>) : null}
+                        {can('accounts.delete') && account.username !== currentUsername && account.username !== 'owner' ? <button type="button" onClick={() => setDeleteTarget(account)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"><Trash2 className="size-3.5" /></button> : null}
                       </div>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">آخر دخول: {account.last_login_at ? new Date(account.last_login_at).toLocaleString('ar') : 'لم يدخل بعد'}{account.is_banned && account.ban_reason ? ` • سبب الباند: ${account.ban_reason}` : ''}</p>
