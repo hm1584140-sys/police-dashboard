@@ -1,5 +1,6 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { normalizePermissions, type Permission } from '@/lib/permissions'
 
 export type Role = 'visitor' | 'commander' | 'admin' | 'owner'
 
@@ -15,6 +16,7 @@ export type Account = {
   created_at?: string
   updated_at?: string
   last_login_at?: string | null
+  permissions: Permission[]
 }
 
 export type PublicAccount = Omit<Account, 'password'>
@@ -27,6 +29,7 @@ export type SessionInfo = {
   login_at: number
   is_banned?: boolean
   ban_reason?: string
+  permissions: Permission[]
 }
 
 function db() {
@@ -74,7 +77,7 @@ export async function findAccount(username: string, password: string): Promise<A
 
   const { data, error } = await db()
     .from('pd_accounts')
-    .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at')
+    .select('username,password,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
     .eq('username', clean)
     .maybeSingle()
 
@@ -96,6 +99,7 @@ export async function findAccount(username: string, password: string): Promise<A
     role: data.role as Role,
     discord_name: data.discord_name ?? '',
     ban_reason: data.ban_reason ?? '',
+    permissions: normalizePermissions(data.permissions),
   } as Account
 }
 
@@ -134,7 +138,7 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
 
   const { data: account } = await db()
     .from('pd_accounts')
-    .select('is_banned,ban_reason')
+    .select('is_banned,ban_reason,permissions')
     .eq('username', session.username)
     .maybeSingle()
 
@@ -145,6 +149,7 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
       discord_name: session.discord_name ?? '',
       is_banned: true,
       ban_reason: account.ban_reason ?? '',
+      permissions: normalizePermissions(account.permissions),
     }
   }
 
@@ -154,6 +159,7 @@ export async function getSession(token: string | null): Promise<SessionInfo | nu
     discord_name: session.discord_name ?? '',
     is_banned: false,
     ban_reason: '',
+    permissions: normalizePermissions(account?.permissions),
   }
 }
 
@@ -202,7 +208,7 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
 export async function getAllAccounts(): Promise<PublicAccount[]> {
   const { data } = await db()
     .from('pd_accounts')
-    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at')
+    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
     .order('created_at', { ascending: true })
 
   return (data ?? []).map((row) => ({
@@ -210,6 +216,7 @@ export async function getAllAccounts(): Promise<PublicAccount[]> {
     role: row.role as Role,
     discord_name: row.discord_name ?? '',
     ban_reason: row.ban_reason ?? '',
+    permissions: normalizePermissions(row.permissions),
   })) as PublicAccount[]
 }
 
@@ -218,6 +225,7 @@ export async function createAccount(input: {
   password: string
   role: Role
   discordName?: string
+  permissions?: Permission[]
 }) {
   const username = input.username.trim().toLowerCase()
   const password = input.password.trim()
@@ -233,8 +241,9 @@ export async function createAccount(input: {
       discord_name: input.discordName?.trim() ?? '',
       is_banned: false,
       ban_reason: '',
+      permissions: normalizePermissions(input.permissions),
     })
-    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at')
+    .select('username,role,discord_name,is_banned,ban_reason,banned_at,banned_by,created_at,updated_at,last_login_at,permissions')
     .single()
 
   if (error) throw new Error(error.code === '23505' ? 'username_exists' : error.message)
@@ -244,6 +253,7 @@ export async function createAccount(input: {
     role: data.role as Role,
     discord_name: data.discord_name ?? '',
     ban_reason: data.ban_reason ?? '',
+    permissions: normalizePermissions(data.permissions),
   } as PublicAccount
 }
 
@@ -254,6 +264,7 @@ export async function updateAccount(
     newPassword?: string
     role?: Role
     discordName?: string
+    permissions?: Permission[]
   },
 ) {
   const current = username.trim().toLowerCase()
@@ -264,6 +275,7 @@ export async function updateAccount(
   if (updates.newPassword?.trim()) patch.password = await hashPassword(updates.newPassword.trim())
   if (updates.role) patch.role = updates.role
   if (updates.discordName !== undefined) patch.discord_name = updates.discordName.trim()
+  if (updates.permissions !== undefined) patch.permissions = normalizePermissions(updates.permissions)
 
   if (Object.keys(patch).length === 1) return
   const { error } = await db().from('pd_accounts').update(patch).eq('username', current)
