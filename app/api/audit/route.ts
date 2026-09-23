@@ -2,15 +2,16 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
-async function requireOwner(token: string | null) {
+async function requireAccess(token: string | null) {
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'logs.view') ? session : null
 }
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const owner = await requireOwner(searchParams.get('token'))
+  const owner = await requireAccess(searchParams.get('token'))
   if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
   const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? 200), 1), 500)
