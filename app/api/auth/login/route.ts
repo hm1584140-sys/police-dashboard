@@ -13,6 +13,14 @@ export async function POST(req: Request) {
 
     if (!account) return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
 
+    if (account.is_banned && account.banned_until && new Date(account.banned_until).getTime() <= Date.now()) {
+      const { getServerSupabase } = await import('@/lib/supabase-server')
+      await getServerSupabase().from('pd_accounts').update({ is_banned: false, ban_reason: '', banned_at: null, banned_by: null, banned_until: null, updated_at: new Date().toISOString() }).eq('username', account.username)
+      account.is_banned = false
+      account.ban_reason = ''
+      account.banned_until = null
+    }
+
     if (account.is_banned) {
       return NextResponse.json({
         error: 'هذا الحساب مبنّد',
@@ -20,6 +28,7 @@ export async function POST(req: Request) {
         username: account.username,
         discordName: cleanDiscord,
         reason: account.ban_reason || 'لم يتم ذكر سبب.',
+        bannedUntil: account.banned_until ?? null,
       }, { status: 403 })
     }
 
