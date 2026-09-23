@@ -60,12 +60,22 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
 
   async function load() {
     try {
-      const res = await fetch('/api/site-overrides?scope=' + encodeURIComponent(scope), { cache: 'no-store' })
-      if (!res.ok) return
-      const rows = await res.json() as OverrideRow[]
-      overrides.current = new Map(rows.map((row) => [row.element_key, row.value ?? {}]))
+      const [pageRes, globalRes] = await Promise.all([
+        fetch('/api/site-overrides?scope=' + encodeURIComponent(scope), { cache: 'no-store' }),
+        fetch('/api/site-overrides?scope=' + encodeURIComponent('__global__'), { cache: 'no-store' }),
+      ])
+      const pageRows = pageRes.ok ? await pageRes.json() as OverrideRow[] : []
+      const globalRows = globalRes.ok ? await globalRes.json() as OverrideRow[] : []
+      overrides.current = new Map([
+        ...pageRows.map((row) => [scope + '::' + row.element_key, row.value ?? {}] as const),
+        ...globalRows.map((row) => ['__global__::' + row.element_key, row.value ?? {}] as const),
+      ])
       applyAll()
     } catch {}
+  }
+
+  function targetScope(el: HTMLElement) {
+    return el.closest('main') ? scope : '__global__'
   }
 
   function keyFor(el: HTMLElement) {
@@ -74,10 +84,14 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
     return elementPath(el, root)
   }
 
+  function mapKey(el: HTMLElement) {
+    return targetScope(el) + '::' + keyFor(el)
+  }
+
   function applyOne(el: HTMLElement) {
     const key = keyFor(el)
     if (!key) return
-    const value = overrides.current.get(key)
+    const value = overrides.current.get(mapKey(el))
     if (!value) return
     if (typeof value.text === 'string' && hasOwnReadableText(el) && el.getAttribute('data-live-editing') !== 'true') {
       const directText = Array.from(el.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim())
@@ -100,12 +114,14 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
   async function saveValue(el: HTMLElement, patch: OverrideValue) {
     const key = keyFor(el)
     if (!key) return
-    const next = { ...(overrides.current.get(key) ?? {}), ...patch }
-    overrides.current.set(key, next)
+    const resolvedScope = targetScope(el)
+    const composite = resolvedScope + '::' + key
+    const next = { ...(overrides.current.get(composite) ?? {}), ...patch }
+    overrides.current.set(composite, next)
     await fetch('/api/site-overrides', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, scope, elementKey: key, value: next }),
+      body: JSON.stringify({ token, scope: resolvedScope, elementKey: key, value: next }),
     }).catch(() => {})
   }
 
@@ -161,8 +177,7 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
       if (!el) return
       event.preventDefault()
       event.stopPropagation()
-      const key = keyFor(el)
-      const current = overrides.current.get(key) ?? {}
+      const current = overrides.current.get(mapKey(el)) ?? {}
       const startX = event.clientX
       const startY = event.clientY
       const baseX = current.x ?? 0
