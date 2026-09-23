@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, X, ListPlus } from 'lucide-react'
+import { Plus, Trash2, X, ListPlus, Table2 } from 'lucide-react'
 import { NeonCard, Pill } from './primitives'
 import { useSector } from '@/lib/sector-context'
 
@@ -29,6 +29,29 @@ export function CustomListManager({ token, onClose }: { token:string; onClose:()
 
   function patchColumn(index:number, patch:Partial<Col>){
     setColumns((prev)=>prev.map((col,i)=>i===index?{...col,...patch}:col))
+  }
+
+  async function quickCreate(){
+    setSaving(true);setMessage('')
+    const number=items.length+1
+    const quickTitle=`جدول جديد ${number}`
+    const quickColumns=Array.from({length:8},(_,index)=>({
+      key:'col_'+String.fromCharCode(97+index),
+      label:String.fromCharCode(65+index),
+      kind:'text' as const,
+      options:[],
+      width:120,
+    }))
+    const res=await fetch('/api/custom-lists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      token,title:quickTitle,description:'',sectorId:null,columns:quickColumns,
+    })})
+    const data=await res.json().catch(()=>({}))
+    if(!res.ok){setSaving(false);return setMessage(data.error??'تعذر إنشاء الجدول')}
+    await Promise.all(Array.from({length:20},()=>fetch('/api/custom-lists/rows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,listId:data.id,data:{_height:'34'}})})))
+    setSaving(false)
+    setMessage('تم إنشاء جدول Google Sheets فارغ وجاهز للتعديل ✓')
+    window.dispatchEvent(new CustomEvent('pd:pages-changed'))
+    await load()
   }
 
   async function create(){
@@ -67,6 +90,11 @@ export function CustomListManager({ token, onClose }: { token:string; onClose:()
           </div>
 
           {message?<div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{message}</div>:null}
+
+          <button type="button" disabled={saving} onClick={()=>void quickCreate()} className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary/15 px-4 py-4 font-heading text-sm font-extrabold text-primary hover:bg-primary/25 disabled:opacity-50">
+            <Table2 className="size-5" /> {saving?'جاري إنشاء الجدول...':'جدول جديد فوراً — بدون أسئلة'}
+          </button>
+          <div className="mb-4 flex items-center gap-3"><span className="h-px flex-1 bg-border"/><span className="text-[10px] text-muted-foreground">أو أنشئ قائمة بتفاصيل مخصصة</span><span className="h-px flex-1 bg-border"/></div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label><span className="mb-1 block text-xs font-bold text-muted-foreground">اسم القائمة</span><input value={title} onChange={(e)=>setTitle(e.target.value)} className="input-base" placeholder="مثال: مكتب التحقيقات LSPD"/></label>
