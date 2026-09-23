@@ -13,6 +13,7 @@ type FormState = {
   originalId: string
   canEditId: boolean
   id: string
+  displayCode: string
   name: string
   arabicName: string
   description: string
@@ -26,6 +27,7 @@ const emptyForm: FormState = {
   originalId: '',
   canEditId: true,
   id: '',
+  displayCode: '',
   name: '',
   arabicName: '',
   description: '',
@@ -55,6 +57,7 @@ function toForm(sector: SectorDefinition): FormState {
     originalId: sector.id,
     canEditId: !['LSPD', 'BCSO', 'SASP'].includes(sector.id) && !sector.is_template,
     id: sector.id,
+    displayCode: sector.code ?? sector.id,
     name: sector.name,
     arabicName: sector.arabic,
     description: sector.description,
@@ -172,6 +175,7 @@ export function SectorManager({ token, onClose }: Props) {
       token,
       id: form.originalId || form.id.trim() || undefined,
       newId: form.id.trim() || undefined,
+      displayCode: form.displayCode.trim() || undefined,
       name: form.name.trim(),
       arabicName: form.arabicName.trim() || form.name.trim(),
       description: form.description.trim(),
@@ -341,15 +345,14 @@ export function SectorManager({ token, onClose }: Props) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="رمز القطاع">
+                <Field label="رمز القطاع الظاهر">
                   <input
-                    value={form.id}
-                    disabled={!form.canEditId}
-                    onChange={(event) => setForm((current) => current ? { ...current, id: event.target.value.toUpperCase() } : current)}
-                    placeholder="مثال: HPD"
+                    value={form.displayCode}
+                    onChange={(event) => setForm((current) => current ? { ...current, displayCode: event.target.value.toUpperCase().slice(0, 20) } : current)}
+                    placeholder="مثال: LSPD أو PD"
                     className="input-base"
                   />
-                  {!form.canEditId ? <p className="mt-1 text-[10px] text-muted-foreground">معرّف القطاعات الأساسية والقوالب الجاهزة محمي. القطاعات المخصصة يمكن تعديل معرفها قبل الضغط على حفظ القطاع.</p> : null}
+                  <p className="mt-1 text-[10px] text-muted-foreground">تقدر تغيّر الرمز الظاهر لأي قطاع، حتى القطاعات الأساسية، بدون ما نخاطر بروابط البيانات الداخلية.</p>
                 </Field>
                 <Field label="اسم القطاع">
                   <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Highway Patrol" className="input-base" />
@@ -485,7 +488,7 @@ function SectorCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-heading text-sm font-extrabold text-foreground">{sector.id}</span>
+            <span className="font-heading text-sm font-extrabold text-foreground">{sector.code ?? sector.id}</span>
             {sector.is_template ? <Pill tone="gold">جاهز</Pill> : null}
           </div>
           <p className="text-sm font-bold text-primary">{sector.arabic}</p>
