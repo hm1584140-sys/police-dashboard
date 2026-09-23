@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pencil, Plus, Trash2, ArrowRight, ArrowLeft, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { BookOpen, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pencil, Plus, Trash2, ArrowRight, ArrowLeft, X, Maximize, MoveHorizontal } from 'lucide-react'
 import { getSopsCopy } from '@/lib/sops-copy'
 import type { ContentBlock, PageDefinition } from '@/lib/page-types'
 import { pursuitCapacity, robberyCapacity } from '@/lib/police-data'
@@ -26,6 +26,9 @@ export function SopsBook({ page }: { page?: PageDefinition }) {
   const [zoom, setZoom] = useState(false)
   const [turning, setTurning] = useState<'next' | 'prev' | null>(null)
   const [editor,setEditor]=useState<{index:number;title:string;body:string}|null>(null)
+  const [jump,setJump]=useState('1')
+  const [dragAngle,setDragAngle]=useState<number|null>(null)
+  const stageRef=useRef<HTMLDivElement|null>(null)
 
   useEffect(() => {
     fetch('/api/pages', { cache: 'no-store' })
@@ -141,8 +144,43 @@ export function SopsBook({ page }: { page?: PageDefinition }) {
     setTurning(direction)
     window.setTimeout(() => {
       setSpread(next)
+      setJump(String(next * 2 + 1))
       setTurning(null)
     }, 260)
+  }
+
+  function jumpToPage() {
+    const pageNo=Math.max(1,Math.min(leaves.length,Number(jump)||1))
+    setSpread(Math.floor((pageNo-1)/2))
+    setJump(String(pageNo))
+  }
+
+  async function toggleFullScreen(){
+    const node=stageRef.current
+    if(!node) return
+    if(document.fullscreenElement) await document.exitFullscreen()
+    else await node.requestFullscreen()
+  }
+
+  function startDrag(direction:'next'|'prev',event:ReactPointerEvent<HTMLButtonElement>){
+    if(turning) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const startX=event.clientX
+    const width=Math.max(1,event.currentTarget.parentElement?.clientWidth??600)
+    const move=(ev:PointerEvent)=>{
+      const delta=direction==='next' ? startX-ev.clientX : ev.clientX-startX
+      const progress=Math.max(0,Math.min(1,delta/(width*0.42)))
+      setDragAngle((direction==='next'?-1:1)*progress*165)
+    }
+    const up=(ev:PointerEvent)=>{
+      const delta=direction==='next' ? startX-ev.clientX : ev.clientX-startX
+      setDragAngle(null)
+      window.removeEventListener('pointermove',move)
+      window.removeEventListener('pointerup',up)
+      if(delta>width*0.12) turn(direction)
+    }
+    window.addEventListener('pointermove',move)
+    window.addEventListener('pointerup',up)
   }
 
   useEffect(() => {
@@ -189,23 +227,30 @@ export function SopsBook({ page }: { page?: PageDefinition }) {
           })}
         </div>:null}
 
-        <div className="relative mx-auto aspect-[1.414/1] w-full max-w-[1180px] [perspective:2600px]">
+        <div ref={stageRef} className={zoom ? "relative mx-auto aspect-[1.414/1] w-full max-w-[1500px] [perspective:2600px]" : "relative mx-auto aspect-[1.414/1] w-full max-w-[1180px] [perspective:2600px]"}>
           <div className="absolute inset-0 rounded-[10px] bg-[#7a6b50] shadow-[0_28px_55px_#020609aa]" />
           <div className="absolute inset-[8px] grid grid-cols-2 overflow-hidden rounded-md bg-[#f6f3e9] text-[#20201d]">
             <BookPage side="left" leaf={left} pageNumber={leftIndex + 1} onDoubleClick={editable&&leaves[leftIndex]?()=>openEditor(leftIndex):undefined} />
             <BookPage side="right" leaf={right} pageNumber={rightIndex + 1} onDoubleClick={editable&&leaves[rightIndex]?()=>openEditor(rightIndex):undefined} />
             <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-5 -translate-x-1/2 bg-gradient-to-r from-[#6a5b4333] via-[#fffdf6cc] to-[#5b4a333b] shadow-[0_0_16px_#54442c66]" />
             {turning ? <div className={['pointer-events-none absolute inset-y-0 z-30 w-1/2 bg-[#f4f0e3] shadow-2xl transition-transform duration-300 [transform-style:preserve-3d]',turning === 'next' ? 'right-0 origin-left -rotate-y-[84deg]' : 'left-0 origin-right rotate-y-[84deg]'].join(' ')} /> : null}
+            {dragAngle !== null ? <div className="pointer-events-none absolute right-0 inset-y-0 z-30 w-1/2 origin-left bg-[#f4f0e3] shadow-2xl [transform-style:preserve-3d]" style={{transform:`rotateY(${dragAngle}deg)`}} /> : null}
           </div>
-          <button aria-label="السابق" type="button" onClick={() => turn('prev')} disabled={spread === 0} className="absolute inset-y-0 left-0 z-40 w-[8%] cursor-w-resize bg-transparent disabled:cursor-default" />
-          <button aria-label="التالي" type="button" onClick={() => turn('next')} disabled={spread === maxSpread} className="absolute inset-y-0 right-0 z-40 w-[8%] cursor-e-resize bg-transparent disabled:cursor-default" />
+          <button aria-label="اسحب للصفحة السابقة" type="button" onPointerDown={(e)=>startDrag('prev',e)} onDoubleClick={() => turn('prev')} disabled={spread === 0} className="absolute inset-y-0 left-0 z-40 w-[13%] cursor-grab bg-transparent active:cursor-grabbing disabled:cursor-default" />
+          <button aria-label="اسحب للصفحة التالية" type="button" onPointerDown={(e)=>startDrag('next',e)} onDoubleClick={() => turn('next')} disabled={spread === maxSpread} className="absolute inset-y-0 right-0 z-40 w-[13%] cursor-grab bg-transparent active:cursor-grabbing disabled:cursor-default" />
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-[#e7eee9]">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[#e7eee9]">
           <button type="button" onClick={() => turn('prev')} disabled={spread === 0} className="inline-flex items-center gap-1 rounded-lg border border-[#9eb8b566] bg-[#edf3ee] px-4 py-2 text-xs font-extrabold text-[#203a45] disabled:opacity-40"><ChevronRight className="size-4" /> السابق</button>
           <span className="min-w-40 text-center font-mono text-xs text-[#b9cac8]">صفحات {leftIndex + 1}–{Math.min(leaves.length, rightIndex + 1)} من {leaves.length}</span>
           <button type="button" onClick={() => turn('next')} disabled={spread === maxSpread} className="inline-flex items-center gap-1 rounded-lg border border-[#9eb8b566] bg-[#edf3ee] px-4 py-2 text-xs font-extrabold text-[#203a45] disabled:opacity-40">التالي <ChevronLeft className="size-4" /></button>
+          <label className="inline-flex items-center gap-1.5 text-xs text-[#d4e0df]">اذهب إلى صفحة
+            <input type="number" min={1} max={Math.max(1,leaves.length)} value={jump} onChange={(e)=>setJump(e.target.value)} onKeyDown={(e)=>{if(e.key==='Enter')jumpToPage()}} onBlur={jumpToPage} className="w-16 rounded-md border border-[#b5c8c8] bg-[#f8faf6] px-2 py-2 text-center text-[#213b46]"/>
+          </label>
+          <button type="button" onClick={()=>setZoom((value)=>!value)} className="inline-flex items-center gap-1 rounded-lg border border-[#9eb8b566] bg-[#edf3ee] px-3 py-2 text-xs font-extrabold text-[#203a45]">{zoom?<Minimize2 className="size-4"/>:<Maximize2 className="size-4"/>}{zoom?'تصغير':'تكبير'}</button>
+          <button type="button" onClick={()=>void toggleFullScreen()} className="inline-flex items-center gap-1 rounded-lg border border-[#9eb8b566] bg-[#edf3ee] px-3 py-2 text-xs font-extrabold text-[#203a45]"><Maximize className="size-4"/>ملء الشاشة</button>
         </div>
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-[#a9bec0]"><MoveHorizontal className="size-3.5"/>امسك طرف الصفحة الخارجي واسحبه للجهة المقابلة، أو استخدم الأسهم والأزرار.</div>
       </div>
 
       {editor?(
