@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils'
 import { PageManager } from './page-manager'
 import { SectorManager } from './sector-manager'
 import type { Role } from '@/lib/auth'
+import { PERMISSIONS, PERMISSION_LABELS, type Permission } from '@/lib/permissions'
+import { useAdmin } from '@/lib/admin-context'
 
 type Tab = 'overview' | 'accounts' | 'messages' | 'appeals' | 'pages' | 'sectors' | 'roster' | 'logs'
 
@@ -32,6 +34,7 @@ type Account = {
   ban_reason: string
   last_login_at?: string | null
   created_at?: string
+  permissions: Permission[]
 }
 
 type Session = {
@@ -98,6 +101,8 @@ const ROLE_TONE: Record<Role, 'muted' | 'gold' | 'danger' | 'neon'> = {
 }
 
 export function OwnerPanel({ token, onClose }: { token: string; onClose: () => void }) {
+  const { role: currentRole, username: currentUsername, can } = useAdmin()
+  const isOwner = currentRole === 'owner'
   const [tab, setTab] = useState<Tab>('overview')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
@@ -109,10 +114,12 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   const [pageManagerOpen, setPageManagerOpen] = useState(false)
   const [sectorManagerOpen, setSectorManagerOpen] = useState(false)
   const [rosterManagerOpen, setRosterManagerOpen] = useState(false)
-  const [accountForm, setAccountForm] = useState<{ username: string; password: string; discordName: string; role: Role } | null>(null)
+  const [accountForm, setAccountForm] = useState<{ username: string; password: string; discordName: string; role: Role; permissions: Permission[] } | null>(null)
   const [editing, setEditing] = useState<EditableAccount | null>(null)
   const [banTarget, setBanTarget] = useState<Account | null>(null)
   const [banReason, setBanReason] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
+  const [appealReview, setAppealReview] = useState<{ appeal: Appeal; status: Appeal['status']; response: string } | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [messageForm, setMessageForm] = useState({ audience: 'all' as OwnerMessage['audience'], recipient: '', title: '', body: '' })
 
@@ -169,7 +176,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     const res = await fetch('/api/auth/accounts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, username: accountForm.username, password: accountForm.password, role: accountForm.role, discordName: accountForm.discordName }),
+      body: JSON.stringify({ token, username: accountForm.username, password: accountForm.password, role: accountForm.role, discordName: accountForm.discordName, permissions: accountForm.permissions }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setMessage(data.error ?? 'تعذر إنشاء الحساب')
@@ -187,6 +194,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
         newPassword: account.__newPassword,
         role: account.role,
         discordName: account.discord_name,
+        permissions: account.permissions,
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -206,14 +214,13 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
   }
 
   async function removeAccount(username: string) {
-    if (!window.confirm('حذف الحساب نهائياً؟')) return
     const res = await fetch('/api/auth/accounts', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, username }),
     })
     if (!res.ok) return setMessage('تعذر حذف الحساب')
-    setMessage('تم حذف الحساب ✓'); await loadCore(true)
+    setDeleteTarget(null); setMessage('تم حذف الحساب ✓'); await loadCore(true)
   }
 
   async function sendMessage() {
@@ -236,15 +243,14 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
     await loadCore(true)
   }
 
-  async function reviewAppeal(appeal: Appeal, status: Appeal['status']) {
-    const response = window.prompt('رد المالك على صاحب الطلب (اختياري):', appeal.owner_response ?? '')
-    if (response === null) return
+  async function reviewAppeal(appeal: Appeal, status: Appeal['status'], response: string) {
     const res = await fetch('/api/auth/appeals', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, id: appeal.id, status, ownerResponse: response }),
     })
     if (!res.ok) return setMessage('تعذر تحديث الطلب')
+    setAppealReview(null)
     setMessage(status === 'approved' ? 'تم فك الباند ومراجعة الطلب ✓' : 'تم رفض الطلب ✓')
     await loadCore(true)
   }
@@ -329,7 +335,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="font-heading text-base font-bold text-foreground">إدارة الحسابات</h4>
-                <button type="button" onClick={() => setAccountForm({ username: '', password: '', discordName: '', role: 'commander' })} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إنشاء حساب</button>
+                <button type="button" onClick={() => setAccountForm({ username: '', password: '', discordName: '', role: 'commander', permissions: [] })} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3.5 py-2 text-sm font-bold text-primary"><Plus className="size-4" /> إنشاء حساب</button>
               </div>
               <div className="grid gap-2">
                 {accounts.map((account) => (
@@ -345,7 +351,7 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                         {account.is_banned
                           ? <button type="button" onClick={() => void ban(account.username, false)} className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary">فك الباند</button>
                           : <button type="button" onClick={() => { setBanTarget(account); setBanReason('') }} className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-bold text-destructive"><Ban className="mr-1 inline size-3.5" />تبنيد</button>}
-                        <button type="button" onClick={() => void removeAccount(account.username)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                        <button type="button" onClick={() => setDeleteTarget(account)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"><Trash2 className="size-3.5" /></button>
                       </div>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">آخر دخول: {account.last_login_at ? new Date(account.last_login_at).toLocaleString('ar') : 'لم يدخل بعد'}{account.is_banned && account.ban_reason ? ` • سبب الباند: ${account.ban_reason}` : ''}</p>
@@ -385,8 +391,8 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
                   {appeal.owner_response ? <p className="mt-2 rounded-lg bg-muted/20 p-3 text-xs text-muted-foreground">رد المالك: {appeal.owner_response}</p> : null}
                   {appeal.status === 'pending' ? (
                     <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={() => void reviewAppeal(appeal, 'approved')} className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary"><CheckCircle2 className="size-3.5" /> قبول وفك الباند</button>
-                      <button type="button" onClick={() => void reviewAppeal(appeal, 'rejected')} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive">رفض</button>
+                      <button type="button" onClick={() => setAppealReview({ appeal, status: 'approved', response: appeal.owner_response ?? '' })} className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary"><CheckCircle2 className="size-3.5" /> قبول وفك الباند</button>
+                      <button type="button" onClick={() => setAppealReview({ appeal, status: 'rejected', response: appeal.owner_response ?? '' })} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive">رفض</button>
                     </div>
                   ) : null}
                 </div>
@@ -458,20 +464,40 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
             <Field label="اسم المستخدم"><input value={accountForm.username} onChange={e=>setAccountForm({...accountForm,username:e.target.value})} className="input-base" /></Field>
             <Field label="كلمة المرور"><input type="password" value={accountForm.password} onChange={e=>setAccountForm({...accountForm,password:e.target.value})} className="input-base" /></Field>
             <Field label="اسم الشخص في Discord (اختياري)"><input value={accountForm.discordName} onChange={e=>setAccountForm({...accountForm,discordName:e.target.value})} className="input-base" placeholder="مثال: أحمد | Ahmd" /></Field>
-            <Field label="الصلاحية"><select value={accountForm.role} onChange={e=>setAccountForm({...accountForm,role:e.target.value as Role})} className="input-base"><option value="commander">قائد</option><option value="admin">أدمن</option><option value="owner">مالك</option></select></Field>
+            <Field label="الصلاحية"><select value={accountForm.role} onChange={e=>setAccountForm({...accountForm,role:e.target.value as Role})} className="input-base"><option value="commander">قائد</option><option value="admin">أدمن</option>{isOwner ? <option value="owner">مالك</option> : null}</select></Field>
           </div>
+          {isOwner && accountForm.role !== 'owner' ? <PermissionPicker value={accountForm.permissions} onChange={(permissions)=>setAccountForm({...accountForm,permissions})} /> : null}
           <Actions onCancel={() => setAccountForm(null)} onSave={() => void createAccount()} saveLabel="إنشاء الحساب" />
         </Modal>
       ) : null}
 
       {editing ? (
-        <EditAccountModal account={editing} onClose={()=>setEditing(null)} onSave={(next)=>{setEditing(next);void updateAccount(next)}} />
+        <EditAccountModal account={editing} onClose={()=>setEditing(null)} onSave={(next)=>{setEditing(next);void updateAccount(next)}} canChangePassword={can('accounts.password')} canAssignPermissions={isOwner} />
       ) : null}
 
       {banTarget ? (
         <Modal title={`تبنيد ${banTarget.username}`} onClose={() => setBanTarget(null)}>
           <Field label="سبب الباند"><textarea value={banReason} onChange={e=>setBanReason(e.target.value)} className="input-base min-h-28 resize-y" placeholder="اكتب السبب الذي سيظهر للمبند..." /></Field>
           <Actions onCancel={()=>setBanTarget(null)} onSave={()=>void ban(banTarget.username,true,banReason)} saveLabel="تأكيد الباند" />
+        </Modal>
+      ) : null}
+
+      {deleteTarget ? (
+        <Modal title="تأكيد حذف الحساب" onClose={() => setDeleteTarget(null)}>
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+            <p className="font-heading text-sm font-extrabold text-foreground">هل تريد حذف حساب {deleteTarget.username} نهائياً؟</p>
+            <p className="mt-2 text-xs text-muted-foreground">هذا الإجراء يحذف الجلسات المرتبطة بالحساب أيضاً.</p>
+          </div>
+          <Actions onCancel={() => setDeleteTarget(null)} onSave={() => void removeAccount(deleteTarget.username)} saveLabel="حذف الحساب" />
+        </Modal>
+      ) : null}
+
+      {appealReview ? (
+        <Modal title={appealReview.status === 'approved' ? 'قبول طلب فك الباند' : 'رفض طلب فك الباند'} onClose={() => setAppealReview(null)}>
+          <Field label="الرد على صاحب الطلب (اختياري)">
+            <textarea value={appealReview.response} onChange={(e)=>setAppealReview({...appealReview,response:e.target.value})} className="input-base min-h-28 resize-y" />
+          </Field>
+          <Actions onCancel={() => setAppealReview(null)} onSave={() => void reviewAppeal(appealReview.appeal, appealReview.status, appealReview.response)} saveLabel={appealReview.status === 'approved' ? 'قبول الطلب' : 'رفض الطلب'} />
         </Modal>
       ) : null}
 
@@ -499,18 +525,46 @@ export function OwnerPanel({ token, onClose }: { token: string; onClose: () => v
 
 type EditableAccount = Account & { __newUsername?: string; __newPassword?: string }
 
-function EditAccountModal({ account, onClose, onSave }: { account: Account; onClose:()=>void; onSave:(next: EditableAccount)=>void }) {
+function EditAccountModal({ account, onClose, onSave, canChangePassword, canAssignPermissions }: { account: Account; onClose:()=>void; onSave:(next: EditableAccount)=>void; canChangePassword:boolean; canAssignPermissions:boolean }) {
   const [form, setForm] = useState<EditableAccount>({ ...account, __newUsername: account.username, __newPassword: '' })
   return (
     <Modal title={`تعديل حساب ${account.username}`} onClose={onClose}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="اسم المستخدم الجديد"><input value={form.__newUsername ?? ''} onChange={e=>setForm({...form,__newUsername:e.target.value})} className="input-base" /></Field>
-        <Field label="كلمة المرور الجديدة (اتركها فارغة إذا لا تريد التغيير)"><input type="password" value={form.__newPassword ?? ''} onChange={e=>setForm({...form,__newPassword:e.target.value})} className="input-base" /></Field>
+        {canChangePassword ? <Field label="كلمة المرور الجديدة (اتركها فارغة إذا لا تريد التغيير)"><input type="password" value={form.__newPassword ?? ''} onChange={e=>setForm({...form,__newPassword:e.target.value})} className="input-base" /></Field> : null}
         <Field label="Discord"><input value={form.discord_name} onChange={e=>setForm({...form,discord_name:e.target.value})} className="input-base" /></Field>
         <Field label="الصلاحية"><select value={form.role} onChange={e=>setForm({...form,role:e.target.value as Role})} className="input-base"><option value="commander">قائد</option><option value="admin">أدمن</option><option value="owner">مالك</option></select></Field>
       </div>
+      {canAssignPermissions && form.role !== 'owner' ? <PermissionPicker value={form.permissions} onChange={(permissions)=>setForm({...form,permissions})} /> : null}
       <Actions onCancel={onClose} onSave={()=>onSave(form)} saveLabel="حفظ التغييرات" />
     </Modal>
+  )
+}
+
+function PermissionPicker({ value, onChange }: { value: Permission[]; onChange: (permissions: Permission[]) => void }) {
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-background/40 p-4">
+      <div className="mb-3">
+        <h5 className="font-heading text-sm font-extrabold text-foreground">الصلاحيات الخاصة</h5>
+        <p className="mt-1 text-[11px] text-muted-foreground">حدد بالضبط ما يظهر لهذا الحساب وما يستطيع تنفيذه داخل الإدارة.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {PERMISSIONS.map((permission) => {
+          const checked = value.includes(permission)
+          return (
+            <label key={permission} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 hover:bg-muted/20">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => onChange(checked ? value.filter((item) => item !== permission) : [...value, permission])}
+                className="size-4 accent-cyan-400"
+              />
+              <span className="text-xs font-bold text-foreground">{PERMISSION_LABELS[permission]}</span>
+            </label>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
