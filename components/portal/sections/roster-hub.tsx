@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo, type CSSProperties, type PointerEvent } from 'react'
-import { Shield, Plus, Trash2, Users, Table2, LayoutList, X } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { Shield, Plus, Trash2, Users, Table2, LayoutList, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PageDefinition } from '@/lib/page-types'
 import { SectionTitle, NeonCard, Pill } from '../primitives'
@@ -89,9 +89,29 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
   const [customColumns, setCustomColumns] = useState<RosterColumn[]>([])
   const [viewMode,setViewMode]=useState<'classic'|'sheet'>('classic')
   const [addChoiceOpen,setAddChoiceOpen]=useState(false)
+  const [columnOrder,setColumnOrder]=useState<string[]>(COLUMNS.map((column)=>column.key))
 
   // Load all officers from Supabase on mount
   useEffect(() => {
+    async function loadColumnOrder() {
+      try {
+        const res = await fetch('/api/site-overrides?scope=' + encodeURIComponent('roster-layout-' + active), { cache: 'no-store' })
+        if (!res.ok) return
+        const rows = await res.json() as Array<{ element_key: string; value?: { order?: string[] } }>
+        const row = rows.find((item) => item.element_key === 'builtin-column-order')
+        const order = row?.value?.order
+        if (Array.isArray(order)) {
+          const valid = order.filter((key) => COLUMNS.some((column) => column.key === key))
+          const missing = COLUMNS.map((column) => column.key).filter((key) => !valid.includes(key))
+          setColumnOrder([...valid, ...missing])
+        } else {
+          setColumnOrder(COLUMNS.map((column) => column.key))
+        }
+      } catch {}
+    }
+
+    void loadColumnOrder()
+
     async function loadColumns() {
       try {
         const res = await fetch('/api/roster-columns?sector=' + encodeURIComponent(active))
@@ -161,10 +181,69 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
 
   const theme = currentSector
   const rows = useMemo(() => rosters[active] ?? [], [rosters, active])
-  const tableWidth = useMemo(
-    () => COLUMNS.reduce((sum, column) => sum + (widths[column.key] ?? column.w), 0) + customColumns.length * 160 + ACTIONS_W,
-    [widths, customColumns.length],
+  const orderedColumns = useMemo(
+    () => columnOrder.map((key) => COLUMNS.find((column) => column.key === key)).filter(Boolean) as typeof COLUMNS,
+    [columnOrder],
   )
+  const tableWidth = useMemo(
+    () => orderedColumns.reduce((sum, column) => sum + (widths[column.key] ?? column.w), 0) + customColumns.length * 160 + ACTIONS_W,
+    [widths, customColumns.length, orderedColumns],
+  )
+
+  async function moveBuiltinColumn(key: string, delta: -1 | 1) {
+    const next = [...columnOrder]
+    const index = next.indexOf(key)
+    const target = index + delta
+    if (index < 0 || target < 0 || target >= next.length || !token) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setColumnOrder(next)
+    await fetch('/api/site-overrides', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        scope: 'roster-layout-' + active,
+        elementKey: 'builtin-column-order',
+        value: { order: next },
+      }),
+    }).catch(() => {})
+  }
+
+  function builtinCell(o: Officer, key: string): ReactNode {
+    const tdClass = cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')
+    switch (key) {
+      case 'badge':
+        return <td key={key} className={tdClass}><TextCell value={o.badge} onChange={(v)=>updateOfficer(o.id,{badge:v})} placeholder="#000" section="roster" /></td>
+      case 'discord':
+        return <td key={key} className={tdClass}><TextCell value={o.discord} onChange={(v)=>updateOfficer(o.id,{discord:v})} placeholder="user#0000" section="roster" /></td>
+      case 'insignia':
+        return <td key={key} className={tdClass}><div className="flex flex-col items-center gap-1"><InsigniaIcon value={o.insignia} sector={active} size={38}/><select value={o.insignia} onChange={(e)=>updateOfficer(o.id,{insignia:e.target.value})} disabled={!editable} className="w-full rounded border border-border bg-background/60 px-1 py-0.5 text-[10px] text-foreground outline-none disabled:opacity-50">{insigniaOptions.map((opt)=><option key={opt} value={opt}>{opt}</option>)}</select></div></td>
+      case 'rank':
+        return <td key={key} className={tdClass}><SelectCell value={o.rank} onChange={(v)=>updateOfficer(o.id,{rank:v})} options={currentSector.ranks} placeholder="الرتبة" section="roster" /></td>
+      case 'ys':
+        return <td key={key} className={tdClass}><div className="flex items-center justify-center gap-2"><ServiceStripeIcon count={Number(o.ys)||0} className="shrink-0 text-primary"/><select value={o.ys||'0'} onChange={(e)=>updateOfficer(o.id,{ys:e.target.value})} disabled={!editable} className={cn('w-12 cursor-pointer appearance-none rounded-md border border-border bg-background/40 px-1 py-1.5 text-center font-mono text-xs text-foreground outline-none',!editable&&'cursor-default opacity-70')}>{[0,1,2,3,4,5,6,7].map((n)=><option key={n} value={n} className="bg-card text-foreground">{n}</option>)}</select></div></td>
+      case 'section':
+        return <td key={key} className={tdClass}><SelectCell value={o.section} onChange={(v)=>updateOfficer(o.id,{section:v})} options={sectionOptions} section="roster" /></td>
+      case 'responsibility':
+        return <td key={key} className={tdClass}><TextCell value={o.responsibility} onChange={(v)=>updateOfficer(o.id,{responsibility:v})} placeholder="N/A" section="roster" /></td>
+      case 'adminRank':
+        return <td key={key} className={tdClass}><TextCell value={o.adminRank} onChange={(v)=>updateOfficer(o.id,{adminRank:v})} placeholder="N/A" section="roster" /></td>
+      case 'squads':
+        return <td key={key} className={tdClass}><TextCell value={o.squads} onChange={(v)=>updateOfficer(o.id,{squads:v})} placeholder="Squad…" section="roster" /></td>
+      case 'status':
+        return <td key={key} className={tdClass}><select value={o.status} onChange={(e)=>updateOfficer(o.id,{status:e.target.value as OfficerStatus})} disabled={!editable} className={cn('w-full cursor-pointer appearance-none rounded-md border px-2.5 py-1.5 text-center font-mono text-xs font-bold outline-none transition-colors',statusStyles[o.status],!editable&&'cursor-default opacity-70')}>{statusOptions.map((s)=><option key={s} value={s} className="bg-card text-foreground">{s}</option>)}</select></td>
+      case 'points':
+        return <td key={key} className={tdClass}><TextCell type="number" value={o.points} onChange={(v)=>updateOfficer(o.id,{points:v})} section="roster" /></td>
+      case 'strikes':
+        return <td key={key} className={tdClass}><TextCell type="number" value={o.strikes} onChange={(v)=>updateOfficer(o.id,{strikes:v})} section="roster" className={cn(Number(o.strikes)>=30&&'border-destructive text-destructive')} /></td>
+      case 'name':
+        return <td key={key} className={tdClass}><TextCell value={o.name} onChange={(v)=>updateOfficer(o.id,{name:v})} placeholder="اكتب الاسم…" section="roster" /></td>
+      case 'certs':
+        return <td key={key} className={tdClass}><div className="flex flex-wrap gap-1.5">{certificationKeys.map((cert)=>{const on=o.certs[cert];return <button key={cert} type="button" onClick={()=>toggleCert(o.id,cert)} disabled={!editable} aria-pressed={on} className={cn('rounded-md border px-2 py-1 font-mono text-[11px] font-bold transition-colors',on?'border-primary/60 bg-primary/20 text-primary glow-neon':'border-border bg-background/40 text-muted-foreground hover:text-foreground',!editable&&'cursor-default opacity-70 hover:text-muted-foreground')}>{cert}</button>})}</div></td>
+      default:
+        return null
+    }
+  }
 
   async function updateOfficer(id: string, patch: Partial<Officer>) {
     if (!editable) return
@@ -371,7 +450,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                 style={{ width: tableWidth }}
               >
                 <colgroup>
-                  {COLUMNS.map((col) => (
+                  {orderedColumns.map((col) => (
                     <col key={col.key} style={{ width: widths[col.key] ?? col.w }} />
                   ))}
                   {customColumns.map((col) => <col key={col.id} style={{ width: widths[col.column_key] ?? 160 }} />)}
@@ -379,17 +458,21 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                 </colgroup>
                 <thead>
                   {viewMode==='sheet'?<tr className="border-b border-border bg-muted/20">
-                    {COLUMNS.map((col,index)=><th key={'letter-'+col.key} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+index)}</th>)}
-                    {customColumns.map((col,index)=><th key={'letter-custom-'+col.id} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+COLUMNS.length+index)}</th>)}
+                    {orderedColumns.map((col,index)=><th key={'letter-'+col.key} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+index)}</th>)}
+                    {customColumns.map((col,index)=><th key={'letter-custom-'+col.id} className="border-l border-border/60 px-2 py-1 text-center font-mono text-[9px] text-muted-foreground">{String.fromCharCode(65+orderedColumns.length+index)}</th>)}
                     <th className="px-1 py-1"/>
                   </tr>:null}
                   <tr className="border-b border-border bg-background/40">
-                    {COLUMNS.map((col) => (
+                    {orderedColumns.map((col) => (
                       <th
                         key={col.key}
                         className={cn('relative whitespace-nowrap font-mono font-bold uppercase tracking-wider text-primary',viewMode==='sheet'?'border-l border-border/70 bg-background/65 px-2 py-2 text-[10px]':'px-3 py-3 text-[11px]')}
                       >
-                        <span className="block truncate pl-2">{col.label}</span>
+                        <span className="flex items-center justify-center gap-1">
+                          {editable ? <button type="button" onClick={() => void moveBuiltinColumn(col.key, -1)} title="تحريك العمود للخلف" className="rounded p-0.5 text-muted-foreground hover:text-primary"><ChevronRight className="size-3" /></button> : null}
+                          <span className="block min-w-0 truncate px-1">{col.label}</span>
+                          {editable ? <button type="button" onClick={() => void moveBuiltinColumn(col.key, 1)} title="تحريك العمود للأمام" className="rounded p-0.5 text-muted-foreground hover:text-primary"><ChevronLeft className="size-3" /></button> : null}
+                        </span>
                         <div
                           role="separator"
                           aria-orientation="vertical"
@@ -416,7 +499,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                   {rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={COLUMNS.length + customColumns.length + 1}
+                        colSpan={orderedColumns.length + customColumns.length + 1}
                         className="px-4 py-10 text-center text-sm text-muted-foreground"
                       >
                         لا يوجد أفراد بعد — اضغط «إضافة فرد» لبدء تعبئة الكشف.
@@ -431,173 +514,7 @@ export function RosterHub({ page }: { page?: PageDefinition }) {
                           idx % 2 === 1 && 'bg-background/20',
                         )}
                       >
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.badge}
-                            onChange={(v) => updateOfficer(o.id, { badge: v })}
-                            placeholder="#000"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.discord}
-                            onChange={(v) => updateOfficer(o.id, { discord: v })}
-                            placeholder="user#0000"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <div className="flex flex-col items-center gap-1">
-                            <InsigniaIcon value={o.insignia} sector={active} size={38}/>
-                            <select
-                              value={o.insignia}
-                              onChange={(e) => updateOfficer(o.id, { insignia: e.target.value })}
-                              disabled={!canEdit('roster')}
-                              className="w-full rounded border border-border bg-background/60 px-1 py-0.5 text-[10px] text-foreground outline-none disabled:opacity-50"
-                            >
-                              {insigniaOptions.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <SelectCell
-                            value={o.rank}
-                            onChange={(v) => updateOfficer(o.id, { rank: v })}
-                            options={currentSector.ranks}
-                            placeholder="الرتبة"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <div className="flex items-center justify-center gap-2">
-                            <ServiceStripeIcon
-                              count={Number(o.ys) || 0}
-                              className="shrink-0 text-primary"
-                            />
-                            <select
-                              value={o.ys || '0'}
-                              onChange={(e) => updateOfficer(o.id, { ys: e.target.value })}
-                              disabled={!editable}
-                              className={cn(
-                                'w-12 cursor-pointer appearance-none rounded-md border border-border bg-background/40 px-1 py-1.5 text-center font-mono text-xs text-foreground outline-none',
-                                !editable && 'cursor-default opacity-70',
-                              )}
-                            >
-                              {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
-                                <option key={n} value={n} className="bg-card text-foreground">
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <SelectCell
-                            value={o.section}
-                            onChange={(v) => updateOfficer(o.id, { section: v })}
-                            options={sectionOptions}
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.responsibility}
-                            onChange={(v) => updateOfficer(o.id, { responsibility: v })}
-                            placeholder="N/A"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.adminRank}
-                            onChange={(v) => updateOfficer(o.id, { adminRank: v })}
-                            placeholder="N/A"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.squads}
-                            onChange={(v) => updateOfficer(o.id, { squads: v })}
-                            placeholder="Squad…"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <select
-                            value={o.status}
-                            onChange={(e) =>
-                              updateOfficer(o.id, { status: e.target.value as OfficerStatus })
-                            }
-                            disabled={!editable}
-                            className={cn(
-                              'w-full cursor-pointer appearance-none rounded-md border px-2.5 py-1.5 text-center font-mono text-xs font-bold outline-none transition-colors',
-                              statusStyles[o.status],
-                              !editable && 'cursor-default opacity-70',
-                            )}
-                          >
-                            {statusOptions.map((s) => (
-                              <option key={s} value={s} className="bg-card text-foreground">
-                                {s}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            type="number"
-                            value={o.points}
-                            onChange={(v) => updateOfficer(o.id, { points: v })}
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            type="number"
-                            value={o.strikes}
-                            onChange={(v) => updateOfficer(o.id, { strikes: v })}
-                            section="roster"
-                            className={cn(
-                              Number(o.strikes) >= 30 && 'border-destructive text-destructive',
-                            )}
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <TextCell
-                            value={o.name}
-                            onChange={(v) => updateOfficer(o.id, { name: v })}
-                            placeholder="اكتب الاسم…"
-                            section="roster"
-                          />
-                        </td>
-                        <td className={cn('px-2 py-2',viewMode==='sheet'&&'border-l border-border/60 p-0')}>
-                          <div className="flex flex-wrap gap-1.5">
-                            {certificationKeys.map((cert) => {
-                              const on = o.certs[cert]
-                              return (
-                                <button
-                                  key={cert}
-                                  type="button"
-                                  onClick={() => toggleCert(o.id, cert)}
-                                  disabled={!editable}
-                                  aria-pressed={on}
-                                  className={cn(
-                                    'rounded-md border px-2 py-1 font-mono text-[11px] font-bold transition-colors',
-                                    on
-                                      ? 'border-primary/60 bg-primary/20 text-primary glow-neon'
-                                      : 'border-border bg-background/40 text-muted-foreground hover:text-foreground',
-                                    !editable && 'cursor-default opacity-70 hover:text-muted-foreground',
-                                  )}
-                                >
-                                  {cert}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </td>
+                        {orderedColumns.map((column) => builtinCell(o, column.key))}
                         {customColumns.map((column) => {
                           const value = o.customFields?.[column.column_key] ?? ''
                           const saveCustom = async (next: string) => {
