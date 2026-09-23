@@ -17,6 +17,7 @@ import { Violations } from './sections/violations'
 import { OwnerPanel } from './owner-panel'
 import { ChatPanel } from './chat-panel'
 import { PageManager } from './page-manager'
+import { LiveSiteEditor } from './live-site-editor'
 import { CmsBlocks, CmsPage } from './cms-page'
 import { BUILTIN_PAGES, PAGE_ICON_MAP, type PageDefinition } from '@/lib/page-types'
 
@@ -292,7 +293,7 @@ export function PortalShell() {
   }
 
   return (
-    <div style={theme.vars as CSSProperties} className="min-h-screen cyber-grid">
+    <div data-live-root="true" style={theme.vars as CSSProperties} className="min-h-screen cyber-grid">
       <div className="min-h-screen bg-gradient-to-b from-background/40 via-background/80 to-background">
         <header className="sticky top-0 z-30 border-b border-border bg-background/95">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
@@ -337,6 +338,8 @@ export function PortalShell() {
           ) : null}
           {activePage ? renderActivePage(activePage) : null}
         </main>
+
+        {can('pages.manage') && token && activePage ? <LiveSiteEditor token={token} scope={activePage.slug} /> : null}
 
         {quickEditorOpen && token && activePage ? (
           <PageManager
