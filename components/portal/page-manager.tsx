@@ -45,6 +45,7 @@ export function PageManager({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<PageDefinition | null>(null)
 
   async function load() {
     setLoading(true)
@@ -115,7 +116,6 @@ export function PageManager({
 
   async function deletePage(target: PageDefinition) {
     if (target.is_system) return
-    if (!window.confirm('حذف هذه القائمة نهائياً؟')) return
     await fetch('/api/pages', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -123,6 +123,7 @@ export function PageManager({
     })
     window.dispatchEvent(new CustomEvent('pd:pages-changed'))
     onSaved?.()
+    setDeleteTarget(null)
     await load()
   }
 
@@ -172,7 +173,7 @@ export function PageManager({
                         {item.is_visible ? 'إخفاء' : 'إظهار'}
                       </button>
                       {!item.is_system ? (
-                        <button type="button" onClick={() => void deletePage(item)} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20">
+                        <button type="button" onClick={() => setDeleteTarget(item)} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20">
                           <Trash2 className="size-3.5" /> حذف
                         </button>
                       ) : null}
@@ -184,6 +185,27 @@ export function PageManager({
           )}
         </NeonCard>
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/75 p-3" onClick={() => setDeleteTarget(null)}>
+          <div className="w-full max-w-md" onClick={(event) => event.stopPropagation()}>
+            <NeonCard glow className="p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h4 className="font-heading text-lg font-extrabold text-foreground">تأكيد حذف القائمة</h4>
+                <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-md border border-border p-2 text-muted-foreground"><X className="size-4" /></button>
+              </div>
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+                <p className="font-heading text-sm font-extrabold text-foreground">{deleteTarget.title}</p>
+                <p className="mt-2 text-xs leading-6 text-muted-foreground">سيتم حذف القائمة المخصصة نهائياً. لا يمكن التراجع عن هذا الإجراء.</p>
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button>
+                <button type="button" onClick={() => void deletePage(deleteTarget)} className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm font-bold text-destructive">حذف القائمة</button>
+              </div>
+            </NeonCard>
+          </div>
+        </div>
+      ) : null}
 
       {page ? (
         <PageEditor page={page} setPage={setPage} saving={saving} onSave={() => void save()} onClose={() => setPage(null)} />
