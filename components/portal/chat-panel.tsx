@@ -47,7 +47,9 @@ export function ChatPanel({ token, currentUsername, onClose }: { token: string; 
 
   useEffect(() => {
     void load()
-    const interval = window.setInterval(() => void load(true), 3500)
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load(true)
+    }, 750)
     return () => window.clearInterval(interval)
   }, [token])
 
@@ -93,26 +95,30 @@ export function ChatPanel({ token, currentUsername, onClose }: { token: string; 
   }
 
   async function setOpen(open: boolean) {
+    setPayload((prev) => ({ ...prev, open }))
     const res = await fetch('/api/chat', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, action: 'set_open', open }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) return setError(data.error ?? 'تعذر تغيير حالة الشات')
-    setPayload((prev) => ({ ...prev, open }))
+    if (!res.ok) {
+      setPayload((prev) => ({ ...prev, open: !open }))
+      return setError(data.error ?? 'تعذر تغيير حالة الشات')
+    }
   }
 
   async function moderateUser(action: 'mute' | 'unmute' | 'timeout' | 'clear_timeout') {
     if (!moderate) return
+    const target = moderate
+    setModerate(null)
     const res = await fetch('/api/chat', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, action, username: moderate.username, minutes: timeoutMinutes, reason }),
+      body: JSON.stringify({ token, action, username: target.username, minutes: timeoutMinutes, reason }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return setError(data.error ?? 'تعذر تنفيذ الإجراء')
-    setModerate(null)
     setReason('')
     setError('تم تنفيذ الإجراء ✓')
     window.setTimeout(() => setError(''), 1800)
