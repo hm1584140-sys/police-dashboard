@@ -33,7 +33,7 @@ export const SectorSwitch = memo(function SectorSwitch() {
         <button key={item.id} type="button" onClick={() => setSector(item.id)} title={item.description}
           className={cn('shrink-0 rounded-md px-3 py-1.5 font-heading text-xs font-bold transition-colors',
             sector === item.id ? 'bg-primary/20 text-primary glow-neon' : 'text-muted-foreground hover:text-foreground')}>
-          {item.id}
+          {item.code ?? item.id}
         </button>
       ))}
     </div>
@@ -252,8 +252,16 @@ export function PortalShell() {
   useEffect(() => {
     void loadPages()
     const handlePagesChanged = () => void loadPages()
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadPages()
+    }, 1400)
     window.addEventListener('pd:pages-changed', handlePagesChanged)
-    return () => window.removeEventListener('pd:pages-changed', handlePagesChanged)
+    window.addEventListener('focus', handlePagesChanged)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('pd:pages-changed', handlePagesChanged)
+      window.removeEventListener('focus', handlePagesChanged)
+    }
   }, [loadPages])
 
   const theme = useMemo(() => ({ vars: currentSector.vars }), [currentSector.vars])
