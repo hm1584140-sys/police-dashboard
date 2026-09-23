@@ -3,13 +3,14 @@ import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { SECTOR_THEME_PRESETS, getBuiltinSectors } from '@/lib/sector-types'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, { status })
 
 const SECTOR_COLUMNS = 'id,name,arabic_name,description,tagline,theme,ranks,is_visible,is_template,created_at'
 
-async function requireOwner(token: string | null) {
+async function requireAccess(token: string | null) {
   if (!token) return null
   const session = await getSession(token)
   return session?.role === 'owner' ? session : null
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     const db = getServerSupabase()
 
     if (adminMode) {
-      const owner = await requireOwner(token)
+      const owner = await requireAccess(token)
       if (!owner) return json({ error: 'غير مصرح' }, 403)
 
       const { data, error } = await db
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const owner = await requireOwner(body.token ?? null)
+    const owner = await requireAccess(body.token ?? null)
     if (!owner) return json({ error: 'هذه العملية للمالك فقط' }, 403)
 
     const db = getServerSupabase()
@@ -155,7 +156,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const owner = await requireOwner(body.token ?? null)
+    const owner = await requireAccess(body.token ?? null)
     if (!owner) return json({ error: 'هذه العملية للمالك فقط' }, 403)
     if (!body.id) return json({ error: 'معرف القطاع مطلوب' }, 400)
 
@@ -232,7 +233,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json()
-    const owner = await requireOwner(body.token ?? null)
+    const owner = await requireAccess(body.token ?? null)
     if (!owner) return json({ error: 'هذه العملية للمالك فقط' }, 403)
     if (!body.id) return json({ error: 'معرف القطاع مطلوب' }, 400)
     if (['LSPD', 'BCSO', 'SASP'].includes(String(body.id))) {
