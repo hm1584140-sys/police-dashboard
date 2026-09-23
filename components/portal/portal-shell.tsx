@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
-import { BookOpen, Lock, LogIn, LogOut, MessageSquare, Pencil, Settings, Shield, X } from 'lucide-react'
+import { BookOpen, Lock, LogIn, LogOut, Mail, MessageSquare, Pencil, Settings, Shield, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSector } from '@/lib/sector-context'
 import { useAdmin, type Role } from '@/lib/admin-context'
@@ -13,6 +13,7 @@ import { OutfitsBuilder } from './sections/outfits-builder'
 import { StrikeBook } from './sections/strike-book'
 import { Violations } from './sections/violations'
 import { OwnerPanel } from './owner-panel'
+import { ChatPanel } from './chat-panel'
 import { PageManager } from './page-manager'
 import { CmsBlocks, CmsPage } from './cms-page'
 import { BUILTIN_PAGES, PAGE_ICON_MAP, type PageDefinition } from '@/lib/page-types'
@@ -80,11 +81,14 @@ function Inbox({ token, onClose }: { token: string; onClose: () => void }) {
   )
 }
 
+function MailIcon() { return <Mail className="size-3.5" /> }
+
 function AuthControl() {
-  const { role, username, discordName, token, isOwner, login, logout } = useAdmin()
+  const { role, username, discordName, token, can, login, logout } = useAdmin()
   const [open, setOpen] = useState(false)
   const [ownerOpen, setOwnerOpen] = useState(false)
   const [inboxOpen, setInboxOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [discord, setDiscord] = useState('')
@@ -150,12 +154,17 @@ function AuthControl() {
       </Pill>
 
       {username && token ? (
-        <button type="button" onClick={() => setInboxOpen(true)} title="الرسائل" className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground hover:text-primary">
-          <MessageSquare className="size-3.5" />
-        </button>
+        <>
+          <button type="button" onClick={() => setChatOpen(true)} title="الشات" className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20">
+            <MessageSquare className="size-3.5" />
+          </button>
+          <button type="button" onClick={() => setInboxOpen(true)} title="الرسائل الإدارية" className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground hover:text-primary">
+            <MailIcon />
+          </button>
+        </>
       ) : null}
 
-      {isOwner ? (
+      {can('admin.view') ? (
         <button type="button" onClick={() => setOwnerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/15 px-3 py-1.5 font-heading text-xs font-bold text-primary hover:bg-primary/25">
           <Settings className="size-3.5" /> إدارة
         </button>
@@ -209,6 +218,7 @@ function AuthControl() {
       ) : null}
 
       {ownerOpen && token ? <OwnerPanel token={token} onClose={() => setOwnerOpen(false)} /> : null}
+      {chatOpen && token && username ? <ChatPanel token={token} currentUsername={username} onClose={() => setChatOpen(false)} /> : null}
       {inboxOpen && token ? <Inbox token={token} onClose={() => setInboxOpen(false)} /> : null}
     </div>
   )
