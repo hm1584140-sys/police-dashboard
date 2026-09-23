@@ -51,6 +51,17 @@ export function SectorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshSectors()
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshSectors()
+    }, 1200)
+    const onFocus = () => void refreshSectors()
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pd:sectors-changed', onFocus)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pd:sectors-changed', onFocus)
+    }
   }, [refreshSectors])
 
   const setSector = useCallback((id: SectorId) => {
