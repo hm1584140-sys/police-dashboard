@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type PageRenderer = 'cms' | 'sops' | 'book' | 'radio' | 'roster' | 'outfits' | 'strikes' | 'violations'
+export type PageRenderer = 'cms' | 'sops' | 'book' | 'custom-list' | 'radio' | 'roster' | 'outfits' | 'strikes' | 'violations'
 
 export type ContentBlock =
   | { type: 'heading'; text: string }
@@ -28,6 +28,7 @@ export type ContentBlock =
   | { type: 'stats'; items: Array<{ value: string; label: string; hint?: string }> }
   | { type: 'sops-copy'; values: Record<string, string> }
   | { type: 'sops-section'; id: string; title: string; icon: string; content: string }
+  | { type: 'custom-list-config'; listId: string }
 
 export type PageDefinition = {
   id: string
