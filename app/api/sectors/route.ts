@@ -8,12 +8,12 @@ import { hasPermission } from '@/lib/permissions'
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, { status })
 
-const SECTOR_COLUMNS = 'id,name,arabic_name,description,tagline,theme,ranks,is_visible,is_template,created_at'
+const SECTOR_COLUMNS = 'id,display_code,name,arabic_name,description,tagline,theme,ranks,is_visible,is_template,created_at'
 
 async function requireAccess(token: string | null) {
   if (!token) return null
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'sectors.manage') ? session : null
 }
 
 function slugify(value: string) {
@@ -38,6 +38,7 @@ function dbToSector(row: Record<string, unknown>) {
   return {
     id: String(row.id),
     name: String(row.name ?? row.id),
+    code: String(row.display_code ?? row.id),
     arabic: String(row.arabic_name ?? row.name ?? row.id),
     description: String(row.description ?? ''),
     tagline: String(row.tagline ?? ''),
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
       .from('pd_sectors')
       .insert({
         id,
+        display_code: String(body.displayCode ?? id).trim().toUpperCase().slice(0, 20) || id,
         name,
         arabic_name: arabicName,
         description,
@@ -192,6 +194,7 @@ export async function PATCH(request: NextRequest) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (requestedId !== originalId) patch.id = requestedId
 
+    if (body.displayCode !== undefined) patch.display_code = String(body.displayCode).trim().toUpperCase().slice(0, 20) || originalId
     if (body.name !== undefined) patch.name = String(body.name).trim()
     if (body.arabicName !== undefined) patch.arabic_name = String(body.arabicName).trim()
     if (body.description !== undefined) patch.description = String(body.description).trim()
