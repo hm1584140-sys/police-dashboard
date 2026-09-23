@@ -27,7 +27,7 @@ export type ContentBlock =
   | { type: 'table'; title?: string; columns: string[]; rows: string[][] }
   | { type: 'stats'; items: Array<{ value: string; label: string; hint?: string }> }
   | { type: 'sops-copy'; values: Record<string, string> }
-  | { type: 'sops-section'; id: string; title: string; icon: string; content: string }
+  | { type: 'sops-section'; id: string; title: string; icon: string; content: string; template?: 'plain' | 'general' | 'cuffs' | 'fire' | 'arrest' | 'pursuit' | 'vehiclefire' | 'capacity' | 'failsafe'; values?: Record<string, string> }
   | { type: 'custom-list-config'; listId: string }
 
 export type PageDefinition = {
