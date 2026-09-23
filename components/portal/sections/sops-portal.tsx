@@ -84,12 +84,106 @@ function Extra({ text }: { text?: string }) {
   return <NeonCard className="p-5 whitespace-pre-wrap text-sm leading-8 text-foreground">{text}</NeonCard>
 }
 
+
+function InlineText({
+  value,
+  editable,
+  onCommit,
+  className,
+  multiline = false,
+}: {
+  value: string
+  editable?: boolean
+  onCommit?: (value: string) => void
+  className?: string
+  multiline?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  if (!editable) return <span className={className}>{value}</span>
+
+  if (!editing) {
+    return (
+      <span
+        className={cn('cursor-text rounded-sm transition-colors hover:bg-primary/5', className)}
+        title="اضغط مرتين للتعديل مباشرة"
+        onDoubleClick={() => { setDraft(value); setEditing(true) }}
+      >
+        {value}
+      </span>
+    )
+  }
+
+  return multiline ? (
+    <textarea
+      autoFocus
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => { setEditing(false); if (draft !== value) onCommit?.(draft) }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') { setDraft(value); setEditing(false) }
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.currentTarget.blur()
+        }
+      }}
+      className={cn('w-full rounded-md border border-primary/50 bg-background/80 px-2 py-1 text-inherit outline-none ring-2 ring-primary/10', className)}
+      rows={Math.max(2, draft.split('\n').length)}
+    />
+  ) : (
+    <input
+      autoFocus
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => { setEditing(false); if (draft !== value) onCommit?.(draft) }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') { setDraft(value); setEditing(false) }
+      }}
+      className={cn('w-full rounded-md border border-primary/50 bg-background/80 px-2 py-1 text-inherit outline-none ring-2 ring-primary/10', className)}
+    />
+  )
+}
+
+function EditableLines({
+  value,
+  editable,
+  onCommit,
+  ordered = false,
+  className,
+}: {
+  value: string
+  editable?: boolean
+  onCommit?: (value: string) => void
+  ordered?: boolean
+  className?: string
+}) {
+  const items = lines(value)
+  const Wrapper = ordered ? 'ol' : 'ul'
+  return (
+    <Wrapper className={className}>
+      {items.map((item, index) => (
+        <li key={index}>
+          <InlineText
+            value={item}
+            editable={editable}
+            onCommit={(next) => {
+              const values = [...items]
+              values[index] = next
+              onCommit?.(values.filter(Boolean).join('\n'))
+            }}
+          />
+        </li>
+      ))}
+    </Wrapper>
+  )
+}
+
 export function SopsPortal({ page }: { page?: PageDefinition }) {
   const { token, can } = useAdmin()
   const editable = Boolean(token && can('pages.manage') && page?.id)
   const [sub, setSub] = useState<string>('general')
   const [sectionEditor, setSectionEditor] = useState<SectionEditorState | null>(null)
-  const [inlineEdit, setInlineEdit] = useState<{ key: string; value: string } | null>(null)
   const copy = useMemo(() => getSopsCopy(page?.blocks), [page?.blocks])
   const customSections = useMemo(
     () => (page?.blocks ?? []).filter((block): block is CustomSection => block.type === 'sops-section'),
@@ -122,7 +216,6 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
     if (!page) return
     const next = setSopsCopy(page.blocks ?? [], { ...copy, [key]: value })
     await saveBlocks(next)
-    setInlineEdit(null)
   }
 
   async function saveSectionEditor() {
@@ -227,14 +320,14 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
           {editable ? <div className="mb-3 flex justify-end gap-2">
             <button type="button" onClick={snapshotCurrentSection} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary"><Copy className="size-3.5" /> نسخ هذا القسم</button>
           </div> : null}
-          {sub === 'general' && <GeneralRules copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'cuffs' && <CuffsTaser copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'fire' && <FireArmed copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'arrest' && <ArrestMiranda copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'pursuit' && <PursuitPit copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
-          {sub === 'vehiclefire' && <VehicleFire copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'general' && <GeneralRules copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
+          {sub === 'cuffs' && <CuffsTaser copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
+          {sub === 'fire' && <FireArmed copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
+          {sub === 'arrest' && <ArrestMiranda copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
+          {sub === 'pursuit' && <PursuitPit copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
+          {sub === 'vehiclefire' && <VehicleFire copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
           {sub === 'capacity' && <RobberyCapacity />}
-          {sub === 'failsafe' && <FailSafe copy={copy} editable={editable} onEdit={(key,value)=>setInlineEdit({key,value})} />}
+          {sub === 'failsafe' && <FailSafe copy={copy} editable={editable} onEdit={(key,value)=>void saveCopyValue(key,value)} />}
           {customSections.map((section) =>
             sub === section.id ? (
               <div key={section.id}>
@@ -287,17 +380,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         </div>
       ) : null}
 
-      {inlineEdit ? (
-        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/75 p-3" onClick={()=>setInlineEdit(null)}>
-          <div className="w-full max-w-2xl" onClick={(e)=>e.stopPropagation()}>
-            <NeonCard glow className="p-5">
-              <div className="mb-3 flex items-center gap-2"><Pencil className="size-4 text-primary"/><h4 className="font-heading font-extrabold">تعديل النص مباشرة</h4></div>
-              <textarea value={inlineEdit.value} onChange={(e)=>setInlineEdit({...inlineEdit,value:e.target.value})} className="input-base min-h-44 resize-y"/>
-              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setInlineEdit(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button><button type="button" onClick={()=>void saveCopyValue(inlineEdit.key,inlineEdit.value)} className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">حفظ النص</button></div>
-            </NeonCard>
-          </div>
-        </div>
-      ) : null}
+
     </div>
   )
 }
@@ -333,8 +416,8 @@ function GeneralRules({ copy, editable, onEdit }: { copy: Copy; editable?: boole
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="القواعد العامة والولايات">
-        <p onDoubleClick={() => editable && onEdit?.('general_1', copy.general_1)} className={editable ? 'cursor-text' : ''}>{copy.general_1}</p>
-        <p onDoubleClick={() => editable && onEdit?.('general_2', copy.general_2)} className={editable ? 'mt-3 cursor-text' : 'mt-3'}>{copy.general_2}</p>
+        <p><InlineText value={copy.general_1} editable={editable} multiline onCommit={(value)=>onEdit?.('general_1',value)} /></p>
+        <p className="mt-3"><InlineText value={copy.general_2} editable={editable} multiline onCommit={(value)=>onEdit?.('general_2',value)} /></p>
       </InfoBlock>
       <div className="grid gap-4 sm:grid-cols-3">
         <NeonCard className="p-4 text-center"><p className="font-heading text-lg font-bold text-primary">SASP</p><p className="text-xs text-muted-foreground">الخطوط السريعة (بدعوة خاصة)</p></NeonCard>
@@ -350,17 +433,13 @@ function CuffsTaser({ copy, editable, onEdit }: { copy: Copy; editable?: boolean
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="بروتوكولات الكلبشة" tone="warn">
-        <p onDoubleClick={()=>editable&&onEdit?.('cuffs_intro',copy.cuffs_intro)} className={editable?'cursor-text':''}>{copy.cuffs_intro}</p>
-        <ol onDoubleClick={()=>editable&&onEdit?.('cuffs_items',copy.cuffs_items)} className={cn('mt-3 list-decimal space-y-1.5 pr-5 marker:text-primary',editable&&'cursor-text')}>
-          {lines(copy.cuffs_items).map((item) => <li key={item}>{item}</li>)}
-        </ol>
+        <p><InlineText value={copy.cuffs_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('cuffs_intro',value)} /></p>
+        <EditableLines value={copy.cuffs_items} editable={editable} ordered onCommit={(value)=>onEdit?.('cuffs_items',value)} className="mt-3 list-decimal space-y-1.5 pr-5 marker:text-primary" />
       </InfoBlock>
       <InfoBlock title="بروتوكول استخدام التيزر">
-        <p onDoubleClick={()=>editable&&onEdit?.('taser_intro',copy.taser_intro)} className={editable?'cursor-text':''}>{copy.taser_intro}</p>
-        <p onDoubleClick={()=>editable&&onEdit?.('taser_direct_intro',copy.taser_direct_intro)} className={editable?'mt-3 cursor-text':'mt-3'}>{copy.taser_direct_intro}</p>
-        <ul onDoubleClick={()=>editable&&onEdit?.('taser_items',copy.taser_items)} className={cn('mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive',editable&&'cursor-text')}>
-          {lines(copy.taser_items).map((item) => <li key={item}>{item}</li>)}
-        </ul>
+        <p><InlineText value={copy.taser_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('taser_intro',value)} /></p>
+        <p className="mt-3"><InlineText value={copy.taser_direct_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('taser_direct_intro',value)} /></p>
+        <EditableLines value={copy.taser_items} editable={editable} onCommit={(value)=>onEdit?.('taser_items',value)} className="mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive" />
       </InfoBlock>
       <div onDoubleClick={()=>editable&&onEdit?.('cuffs_extra',copy.cuffs_extra)} className={editable?'cursor-text':''}><Extra text={copy.cuffs_extra} /></div>
     </div>
@@ -371,10 +450,8 @@ function FireArmed({ copy, editable, onEdit }: { copy: Copy; editable?: boolean;
   return (
     <div className="flex flex-col gap-4">
       <InfoBlock title="إطلاق النار على المسلحين" tone="danger">
-        <p onDoubleClick={()=>editable&&onEdit?.('fire_intro',copy.fire_intro)} className={editable?'cursor-text':''}>{copy.fire_intro}</p>
-        <ol onDoubleClick={()=>editable&&onEdit?.('fire_items',copy.fire_items)} className={cn('mt-3 list-decimal space-y-2 pr-5 marker:text-destructive',editable&&'cursor-text')}>
-          {lines(copy.fire_items).map((item) => <li key={item}>{item}</li>)}
-        </ol>
+        <p><InlineText value={copy.fire_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('fire_intro',value)} /></p>
+        <EditableLines value={copy.fire_items} editable={editable} ordered onCommit={(value)=>onEdit?.('fire_items',value)} className="mt-3 list-decimal space-y-2 pr-5 marker:text-destructive" />
       </InfoBlock>
       <div onDoubleClick={()=>editable&&onEdit?.('fire_extra',copy.fire_extra)} className={editable?'cursor-text':''}><Extra text={copy.fire_extra} /></div>
     </div>
@@ -384,9 +461,9 @@ function FireArmed({ copy, editable, onEdit }: { copy: Copy; editable?: boolean;
 function ArrestMiranda({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; onEdit?: (key:string,value:string)=>void }) {
   return (
     <div className="flex flex-col gap-4">
-      <InfoBlock title="الاعتقال وحقوق ميراندا"><p onDoubleClick={()=>editable&&onEdit?.('arrest_intro',copy.arrest_intro)} className={editable?'cursor-text':''}>{copy.arrest_intro}</p></InfoBlock>
-      <NeonCard glow className="p-6"><p onDoubleClick={()=>editable&&onEdit?.('miranda',copy.miranda)} className={cn('border-r-4 border-r-primary pr-4 font-heading text-base leading-loose text-foreground',editable&&'cursor-text')}>«{copy.miranda}»</p></NeonCard>
-      <InfoBlock title="إجراءات ما بعد الاعتقال"><p onDoubleClick={()=>editable&&onEdit?.('post_arrest',copy.post_arrest)} className={editable?'cursor-text':''}>{copy.post_arrest}</p></InfoBlock>
+      <InfoBlock title="الاعتقال وحقوق ميراندا"><p><InlineText value={copy.arrest_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('arrest_intro',value)} /></p></InfoBlock>
+      <NeonCard glow className="p-6"><p className="border-r-4 border-r-primary pr-4 font-heading text-base leading-loose text-foreground">«<InlineText value={copy.miranda} editable={editable} multiline onCommit={(value)=>onEdit?.('miranda',value)} />»</p></NeonCard>
+      <InfoBlock title="إجراءات ما بعد الاعتقال"><p><InlineText value={copy.post_arrest} editable={editable} multiline onCommit={(value)=>onEdit?.('post_arrest',value)} /></p></InfoBlock>
       <div onDoubleClick={()=>editable&&onEdit?.('arrest_extra',copy.arrest_extra)} className={editable?'cursor-text':''}><Extra text={copy.arrest_extra} /></div>
     </div>
   )
@@ -398,12 +475,12 @@ function PursuitPit({ copy, editable, onEdit }: { copy: Copy; editable?: boolean
       <div className="grid gap-3 sm:grid-cols-2">
         {pursuitCapacity.map((row) => <NeonCard key={row.type} className="p-4"><p className="font-heading text-sm font-bold text-foreground">{row.type}</p><p className="mt-1 font-mono text-primary">{row.units}</p></NeonCard>)}
       </div>
-      <InfoBlock title="تحديثات الدسباتش"><p onDoubleClick={()=>editable&&onEdit?.('dispatch',copy.dispatch)} className={editable?'cursor-text':''}>{copy.dispatch}</p></InfoBlock>
+      <InfoBlock title="تحديثات الدسباتش"><p><InlineText value={copy.dispatch} editable={editable} multiline onCommit={(value)=>onEdit?.('dispatch',value)} /></p></InfoBlock>
       <InfoBlock title="مناورة الصدم (PIT Maneuver)" tone="warn">
-        <p onDoubleClick={()=>editable&&onEdit?.('pit_intro',copy.pit_intro)} className={editable?'cursor-text':''}>{copy.pit_intro}</p>
-        <ol onDoubleClick={()=>editable&&onEdit?.('pit_items',copy.pit_items)} className={cn('mt-2 list-decimal space-y-1.5 pr-5 marker:text-primary',editable&&'cursor-text')}>{lines(copy.pit_items).map((item) => <li key={item}>{item}</li>)}</ol>
+        <p><InlineText value={copy.pit_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('pit_intro',value)} /></p>
+        <EditableLines value={copy.pit_items} editable={editable} ordered onCommit={(value)=>onEdit?.('pit_items',value)} className="mt-2 list-decimal space-y-1.5 pr-5 marker:text-primary" />
         <p className="mt-4 font-bold text-foreground">الشروط الصارمة للـ PIT:</p>
-        <ul onDoubleClick={()=>editable&&onEdit?.('pit_conditions',copy.pit_conditions)} className={cn('mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive',editable&&'cursor-text')}>{lines(copy.pit_conditions).map((item) => <li key={item}>{item}</li>)}</ul>
+        <EditableLines value={copy.pit_conditions} editable={editable} onCommit={(value)=>onEdit?.('pit_conditions',value)} className="mt-2 list-disc space-y-1.5 pr-5 marker:text-destructive" />
       </InfoBlock>
       <div onDoubleClick={()=>editable&&onEdit?.('pursuit_extra',copy.pursuit_extra)} className={editable?'cursor-text':''}><Extra text={copy.pursuit_extra} /></div>
     </div>
@@ -417,7 +494,7 @@ function VehicleFire({ copy, editable, onEdit }: { copy: Copy; editable?: boolea
   })
   return (
     <div className="flex flex-col gap-4">
-      <InfoBlock title="إطلاق النار على المركبة" tone="danger"><p onDoubleClick={()=>editable&&onEdit?.('vehicle_intro',copy.vehicle_intro)} className={editable?'cursor-text':''}>{copy.vehicle_intro}</p></InfoBlock>
+      <InfoBlock title="إطلاق النار على المركبة" tone="danger"><p><InlineText value={copy.vehicle_intro} editable={editable} multiline onCommit={(value)=>onEdit?.('vehicle_intro',value)} /></p></InfoBlock>
       <div onDoubleClick={()=>editable&&onEdit?.('vehicle_cases',copy.vehicle_cases)} className={cn('grid gap-3',editable&&'cursor-text')}>
         {cases.map((item, i) => (
           <NeonCard key={`${item.t}-${i}`} className="flex items-start gap-4 p-4">
@@ -452,8 +529,8 @@ function FailSafe({ copy, editable, onEdit }: { copy: Copy; editable?: boolean; 
         {lines(copy.failsafe_items).map((item) => <div key={item} className="flex items-center gap-2.5 rounded-lg border border-border bg-card/60 px-4 py-2.5 text-sm text-foreground"><ShieldOff className="size-4 shrink-0 text-destructive" /><span className="font-heading">{item}</span></div>)}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الهروب على الأقدام بسلاح</p><p onDoubleClick={()=>editable&&onEdit?.('foot_escape',copy.foot_escape)} className={editable?'cursor-text text-sm text-muted-foreground':'text-sm text-muted-foreground'}>{copy.foot_escape}</p></NeonCard>
-        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الحد الأقصى الكلي للهروب</p><p onDoubleClick={()=>editable&&onEdit?.('max_escape',copy.max_escape)} className={editable?'cursor-text font-mono text-primary':'font-mono text-primary'}>{copy.max_escape}</p></NeonCard>
+        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الهروب على الأقدام بسلاح</p><p className="text-sm text-muted-foreground"><InlineText value={copy.foot_escape} editable={editable} multiline onCommit={(value)=>onEdit?.('foot_escape',value)} /></p></NeonCard>
+        <NeonCard glow className="p-4"><p className="font-heading font-bold text-foreground">الحد الأقصى الكلي للهروب</p><p className="font-mono text-primary"><InlineText value={copy.max_escape} editable={editable} onCommit={(value)=>onEdit?.('max_escape',value)} /></p></NeonCard>
       </div>
       <div onDoubleClick={()=>editable&&onEdit?.('failsafe_extra',copy.failsafe_extra)} className={editable?'cursor-text':''}><Extra text={copy.failsafe_extra} /></div>
     </div>
