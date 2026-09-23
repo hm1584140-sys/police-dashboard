@@ -15,8 +15,9 @@ export async function GET(req: Request) {
   if (!listId) return NextResponse.json({ error: 'listId مطلوب' }, { status: 400 })
   const { data, error } = await getServerSupabase()
     .from('pd_custom_list_rows')
-    .select('id,list_id,data,created_at,updated_at')
+    .select('id,list_id,data,sort_order,created_at,updated_at')
     .eq('list_id', listId)
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
@@ -24,13 +25,19 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { token, listId, data } = await req.json()
+    const { token, listId, data, sortOrder } = await req.json()
     const session = await requireEditor(token)
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-    const { data: row, error } = await getServerSupabase()
+    const db = getServerSupabase()
+    let order = Number(sortOrder)
+    if (!Number.isFinite(order)) {
+      const { data: latest } = await db.from('pd_custom_list_rows').select('sort_order').eq('list_id', String(listId)).order('sort_order', { ascending: false }).limit(1).maybeSingle()
+      order = Number(latest?.sort_order ?? 0) + 1
+    }
+    const { data: row, error } = await db
       .from('pd_custom_list_rows')
-      .insert({ list_id: String(listId), data: data && typeof data === 'object' ? data : {} })
-      .select('id,list_id,data,created_at,updated_at')
+      .insert({ list_id: String(listId), data: data && typeof data === 'object' ? data : {}, sort_order: order })
+      .select('id,list_id,data,sort_order,created_at,updated_at')
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     await writeAuditLog(session, 'custom_list_row_create', 'custom_list_row', String(row.id), { listId })
@@ -42,14 +49,14 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { token, id, data } = await req.json()
+    const { token, id, data, sortOrder } = await req.json()
     const session = await requireEditor(token)
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { data: row, error } = await getServerSupabase()
       .from('pd_custom_list_rows')
-      .update({ data: data && typeof data === 'object' ? data : {}, updated_at: new Date().toISOString() })
+      .update({ data: data && typeof data === 'object' ? data : {}, ...(Number.isFinite(Number(sortOrder)) ? { sort_order: Number(sortOrder) } : {}), updated_at: new Date().toISOString() })
       .eq('id', String(id))
-      .select('id,list_id,data,created_at,updated_at')
+      .select('id,list_id,data,sort_order,created_at,updated_at')
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     await writeAuditLog(session, 'custom_list_row_update', 'custom_list_row', String(id))
