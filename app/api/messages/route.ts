@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
-async function getOwner(token: string | null) {
+async function getManager(token: string | null) {
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'messages.manage') ? session : null
 }
 
 function matches(
@@ -22,7 +23,7 @@ function matches(
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const token = searchParams.get('token')
-  const owner = await getOwner(token)
+  const owner = await getManager(token)
   const db = getServerSupabase()
 
   const { data, error } = await db.from('pd_messages').select('id,audience,recipient_username,title,body,created_by,created_at').order('created_at', { ascending: false })
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const { token, audience, recipientUsername, title, body } = await req.json()
-    const owner = await getOwner(token)
+    const owner = await getManager(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (!['all', 'online', 'banned', 'user'].includes(audience)) return NextResponse.json({ error: 'نوع الجمهور غير صحيح' }, { status: 400 })
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { token, id } = await req.json()
-    const owner = await getOwner(token)
+    const owner = await getManager(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const { error } = await getServerSupabase().from('pd_messages').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
