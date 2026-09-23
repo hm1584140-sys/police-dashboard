@@ -18,7 +18,7 @@ function cleanPage(input: Record<string, unknown>) {
     description: String(input.description ?? '').trim(),
     icon: String(input.icon ?? 'FileText'),
     page_type: String(input.page_type ?? 'content'),
-    renderer: (['cms', 'sops', 'radio', 'roster', 'outfits', 'strikes', 'violations'].includes(String(input.renderer))
+    renderer: (['cms', 'sops', 'book', 'radio', 'roster', 'outfits', 'strikes', 'violations'].includes(String(input.renderer))
       ? String(input.renderer)
       : 'cms') as PageRenderer,
     is_visible: input.is_visible !== false,
