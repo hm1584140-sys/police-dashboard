@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { createBanAppeal, getBanAppeals, getSession } from '@/lib/auth'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
-async function requireOwner(token: string | null) {
+async function requireAccess(token: string | null) {
   const session = await getSession(token)
-  return session?.role === 'owner' ? session : null
+  return hasPermission(session, 'appeals.manage') ? session : null
 }
 
 export async function POST(req: Request) {
@@ -20,14 +21,14 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  if (!(await requireOwner(searchParams.get('token')))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+  if (!(await requireAccess(searchParams.get('token')))) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
   return NextResponse.json(await getBanAppeals())
 }
 
 export async function PATCH(req: Request) {
   try {
     const { token, id, status, ownerResponse } = await req.json()
-    const owner = await requireOwner(token)
+    const owner = await requireAccess(token)
     if (!owner) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (!['pending', 'approved', 'rejected'].includes(status)) return NextResponse.json({ error: 'حالة غير صحيحة' }, { status: 400 })
 
