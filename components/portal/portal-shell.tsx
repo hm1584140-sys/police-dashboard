@@ -8,6 +8,7 @@ import { useAdmin, type Role } from '@/lib/admin-context'
 import { NeonCard, Pill } from './primitives'
 import { SopsPortal } from './sections/sops-portal'
 import { SopsBook } from './sections/sops-book'
+import { CustomListPage } from './sections/custom-list-page'
 import { RadioProtocols } from './sections/radio-protocols'
 import { RosterHub } from './sections/roster-hub'
 import { OutfitsBuilder } from './sections/outfits-builder'
@@ -281,6 +282,7 @@ export function PortalShell() {
   function renderActivePage(page: PageDefinition) {
     if (page.slug === 'sops' || page.renderer === 'sops') return <SopsPortal page={page} />
     if (page.renderer === 'book') return <SopsBook page={page} />
+    if (page.renderer === 'custom-list') return <CustomListPage page={page} />
     if (page.renderer === 'radio') return withExtraContent(page, <RadioProtocols page={page} />)
     if (page.renderer === 'roster') return withExtraContent(page, <RosterHub page={page} />)
     if (page.renderer === 'outfits') return withExtraContent(page, <OutfitsBuilder page={page} />)
