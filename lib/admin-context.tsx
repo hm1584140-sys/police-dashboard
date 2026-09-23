@@ -67,11 +67,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (!saved) { setLoading(false); return }
     checkSession(saved)
 
-    // كل 10 ثواني نتحقق إذا الجلسة لسا شغالة (يكتشف الطرد بسرعة)
+    // فحص خفيف للجلسة بدون ضغط زائد على الموقع.
     const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
       const currentToken = localStorage.getItem(TOKEN_KEY)
       if (currentToken) checkSession(currentToken)
-    }, 10000)
+    }, 20000)
 
     return () => clearInterval(interval)
   }, [])
