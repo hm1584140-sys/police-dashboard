@@ -120,19 +120,19 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
     root.querySelectorAll<HTMLElement>('*').forEach(applyOne)
   }
 
-  async function saveValue(el: HTMLElement, patch: OverrideValue) {
+  async function saveValue(el: HTMLElement, patch: OverrideValue, snapshot?: { before: OverrideValue; beforeText: string; beforeStyle: { transform: string; position: string; zIndex: string } }) {
     const key = keyFor(el)
     if (!key) return
     const resolvedScope = targetScope(el)
     const composite = resolvedScope + '::' + key
-    const before = { ...(overrides.current.get(composite) ?? {}) }
+    const before = snapshot?.before ?? { ...(overrides.current.get(composite) ?? {}) }
     setHistory((prev) => [...prev.slice(-19), {
       el,
       scope: resolvedScope,
       key,
       before,
-      beforeText: el.textContent ?? '',
-      beforeStyle: {
+      beforeText: snapshot?.beforeText ?? (el.textContent ?? ''),
+      beforeStyle: snapshot?.beforeStyle ?? {
         transform: el.style.transform,
         position: el.style.position,
         zIndex: el.style.zIndex,
@@ -217,6 +217,11 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
       event.preventDefault()
       event.stopPropagation()
       const original = el.textContent ?? ''
+      const editSnapshot = {
+        before: { ...(overrides.current.get(mapKey(el)) ?? {}) },
+        beforeText: original,
+        beforeStyle: { transform: el.style.transform, position: el.style.position, zIndex: el.style.zIndex },
+      }
       el.setAttribute('data-live-editing', 'true')
       el.contentEditable = 'true'
       el.spellcheck = false
@@ -233,7 +238,7 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
         el.removeAttribute('data-live-editing')
         const next = (el.textContent ?? '').trim()
         if (next !== original.trim()) {
-          void saveValue(el, { text: next })
+          void saveValue(el, { text: next }, editSnapshot)
           setMessage('تم حفظ النص مباشرة ✓')
           window.setTimeout(() => setMessage(''), 1200)
         }
@@ -249,6 +254,11 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
       event.preventDefault()
       event.stopPropagation()
       const current = overrides.current.get(mapKey(el)) ?? {}
+      const dragSnapshot = {
+        before: { ...current },
+        beforeText: el.textContent ?? '',
+        beforeStyle: { transform: el.style.transform, position: el.style.position, zIndex: el.style.zIndex },
+      }
       const startX = event.clientX
       const startY = event.clientY
       const baseX = current.x ?? 0
@@ -270,7 +280,7 @@ export function LiveSiteEditor({ token, scope }: { token: string; scope: string 
         document.body.style.cursor = ''
         const x = baseX + ev.clientX - startX
         const y = baseY + ev.clientY - startY
-        void saveValue(el, { x, y })
+        void saveValue(el, { x, y }, dragSnapshot)
         setMessage('تم تثبيت مكان العنصر ✓')
         window.setTimeout(() => setMessage(''), 1200)
       }
