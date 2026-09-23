@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { NeonCard, Pill, StatCard, InfoBlock } from '@/components/portal/primitives'
 import { pursuitCapacity, robberyCapacity } from '@/lib/police-data'
 import { PAGE_ICON_MAP, type ContentBlock, type PageDefinition } from '@/lib/page-types'
-import { getSopsCopy, setSopsCopy } from '@/lib/sops-copy'
+import { DEFAULT_SOPS_COPY, SOPS_COPY_FIELDS, getSopsCopy, setSopsCopy } from '@/lib/sops-copy'
 import { useAdmin } from '@/lib/admin-context'
 
 const SUB = [
@@ -38,6 +38,42 @@ const SUB = [
 
 type Copy = Record<string, string>
 type CustomSection = Extract<ContentBlock, { type: 'sops-section' }>
+type SectionTemplate = NonNullable<CustomSection['template']>
+type SectionEditorState = {
+  id?: string
+  title: string
+  content: string
+  template: SectionTemplate
+  values: Record<string, string>
+}
+
+const TEMPLATE_LABELS: Record<SectionTemplate, string> = {
+  plain: 'قسم حر',
+  general: 'نفس تصميم القواعد العامة',
+  cuffs: 'نفس تصميم الكلبشة والتيزر',
+  fire: 'نفس تصميم إطلاق النار',
+  arrest: 'نفس تصميم الاعتقال وميراندا',
+  pursuit: 'نفس تصميم المطاردات و PIT',
+  vehiclefire: 'نفس تصميم إطلاق النار على المركبة',
+  capacity: 'نفس تصميم القوة الاستيعابية',
+  failsafe: 'نفس تصميم مفشلات الهروب',
+}
+
+const TEMPLATE_KEYS: Record<SectionTemplate, string[]> = {
+  plain: [],
+  general: ['general_1','general_2','general_extra'],
+  cuffs: ['cuffs_intro','cuffs_items','taser_intro','taser_direct_intro','taser_items','cuffs_extra'],
+  fire: ['fire_intro','fire_items','fire_extra'],
+  arrest: ['arrest_intro','miranda','post_arrest','arrest_extra'],
+  pursuit: ['dispatch','pit_intro','pit_items','pit_conditions','pursuit_extra'],
+  vehiclefire: ['vehicle_intro','vehicle_cases','vehicle_extra'],
+  capacity: [],
+  failsafe: ['failsafe_items','foot_escape','max_escape','failsafe_extra'],
+}
+
+function templateValues(template: SectionTemplate, source: Copy = DEFAULT_SOPS_COPY) {
+  return Object.fromEntries(TEMPLATE_KEYS[template].map((key) => [key, source[key] ?? '']))
+}
 
 function lines(value: string) {
   return value.split('\n').map((item) => item.trim()).filter(Boolean)
@@ -52,7 +88,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
   const { token, can } = useAdmin()
   const editable = Boolean(token && can('pages.manage') && page?.id)
   const [sub, setSub] = useState<string>('general')
-  const [sectionEditor, setSectionEditor] = useState<{ id?: string; title: string; content: string } | null>(null)
+  const [sectionEditor, setSectionEditor] = useState<SectionEditorState | null>(null)
   const [inlineEdit, setInlineEdit] = useState<{ key: string; value: string } | null>(null)
   const copy = useMemo(() => getSopsCopy(page?.blocks), [page?.blocks])
   const customSections = useMemo(
@@ -93,25 +129,52 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
     if (!sectionEditor || !page) return
     const existing = (page.blocks ?? []).filter((block) => block.type !== 'sops-section' || block.id !== sectionEditor.id)
     const id = sectionEditor.id || 'sops-' + crypto.randomUUID()
-    const section: CustomSection = { type: 'sops-section', id, title: sectionEditor.title.trim() || 'قسم جديد', icon: 'ScrollText', content: sectionEditor.content }
+    const section: CustomSection = {
+      type: 'sops-section',
+      id,
+      title: sectionEditor.title.trim() || 'قسم جديد',
+      icon: 'ScrollText',
+      content: sectionEditor.content,
+      template: sectionEditor.template,
+      values: sectionEditor.values,
+    }
     await saveBlocks([...existing, section])
     setSectionEditor(null)
     setSub(id)
   }
 
   function snapshotCurrentSection() {
-    const builtInText: Record<string, string> = {
-      general: [copy.general_1, copy.general_2, copy.general_extra].filter(Boolean).join('\n\n'),
-      cuffs: [copy.cuffs_intro, copy.cuffs_items, copy.taser_intro, copy.taser_direct_intro, copy.taser_items, copy.cuffs_extra].filter(Boolean).join('\n\n'),
-      fire: [copy.fire_intro, copy.fire_items, copy.fire_extra].filter(Boolean).join('\n\n'),
-      arrest: [copy.arrest_intro, copy.miranda, copy.post_arrest, copy.arrest_extra].filter(Boolean).join('\n\n'),
-      pursuit: [copy.dispatch, copy.pit_intro, copy.pit_items, copy.pit_conditions, copy.pursuit_extra].filter(Boolean).join('\n\n'),
-      vehiclefire: [copy.vehicle_intro, copy.vehicle_cases, copy.vehicle_extra].filter(Boolean).join('\n\n'),
-      failsafe: [copy.failsafe_items, copy.foot_escape, copy.max_escape, copy.failsafe_extra].filter(Boolean).join('\n\n'),
-    }
     const nav = navigation.find((item) => item.id === sub)
     const custom = customSections.find((item) => item.id === sub)
-    setSectionEditor({ title: 'نسخة من ' + (nav?.label ?? 'قسم'), content: custom?.content ?? builtInText[sub] ?? '' })
+    if (custom) {
+      const template = custom.template ?? 'plain'
+      setSectionEditor({
+        title: 'نسخة من ' + custom.title,
+        content: custom.content ?? '',
+        template,
+        values: { ...templateValues(template, copy), ...(custom.values ?? {}) },
+      })
+      return
+    }
+
+    const template: SectionTemplate = (SUB.some((item) => item.id === sub) ? sub : 'plain') as SectionTemplate
+    setSectionEditor({
+      title: 'نسخة من ' + (nav?.label ?? 'قسم'),
+      content: '',
+      template,
+      values: templateValues(template, copy),
+    })
+  }
+
+  function editCustomSection(section: CustomSection) {
+    const template = section.template ?? 'plain'
+    setSectionEditor({
+      id: section.id,
+      title: section.title,
+      content: section.content ?? '',
+      template,
+      values: { ...templateValues(template, copy), ...(section.values ?? {}) },
+    })
   }
 
   return (
@@ -142,7 +205,7 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
         <NeonCard className="h-fit p-2 lg:sticky lg:top-36">
           <div className="flex items-center justify-between px-3 py-2">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">أقسام البروتوكولات</p>
-            {editable ? <button type="button" onClick={() => setSectionEditor({ title: 'قسم جديد', content: '' })} title="إضافة قسم" className="inline-flex size-7 items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-primary"><Plus className="size-3.5" /></button> : null}
+            {editable ? <button type="button" onClick={() => setSectionEditor({ title: 'قسم جديد', content: '', template: 'general', values: templateValues('general', copy) })} title="إضافة قسم" className="inline-flex size-7 items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-primary"><Plus className="size-3.5" /></button> : null}
           </div>
           <div className="flex flex-col gap-1">
             {navigation.map((s) => {
@@ -173,7 +236,12 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
           {sub === 'capacity' && <RobberyCapacity />}
           {sub === 'failsafe' && <FailSafe copy={copy} />}
           {customSections.map((section) =>
-            sub === section.id ? <CustomSopsSection key={section.id} section={section} /> : null,
+            sub === section.id ? (
+              <div key={section.id}>
+                {editable ? <div className="mb-3 flex justify-end"><button type="button" onClick={() => editCustomSection(section)} className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary"><Pencil className="size-3.5" /> تعديل هذا القسم</button></div> : null}
+                <CustomSopsSection section={section} baseCopy={copy} />
+              </div>
+            ) : null,
           )}
         </div>
       </div>
@@ -182,8 +250,37 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
           <div className="w-full max-w-2xl" onClick={(e)=>e.stopPropagation()}>
             <NeonCard glow className="p-5">
               <div className="mb-4 flex items-center justify-between"><h4 className="font-heading text-lg font-extrabold">إضافة / تعديل قسم بروتوكول</h4><button type="button" onClick={()=>setSectionEditor(null)} className="rounded border border-border p-2"><X className="size-4"/></button></div>
-              <input value={sectionEditor.title} onChange={(e)=>setSectionEditor({...sectionEditor,title:e.target.value})} className="input-base mb-3" placeholder="اسم القسم"/>
-              <textarea value={sectionEditor.content} onChange={(e)=>setSectionEditor({...sectionEditor,content:e.target.value})} className="input-base min-h-72 resize-y" placeholder="محتوى القسم..."/>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">اسم القسم</span><input value={sectionEditor.title} onChange={(e)=>setSectionEditor({...sectionEditor,title:e.target.value})} className="input-base" placeholder="اسم القسم"/></label>
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">تصميم القسم</span>
+                  <select value={sectionEditor.template} onChange={(e)=>{
+                    const template=e.target.value as SectionTemplate
+                    setSectionEditor({...sectionEditor,template,values:{...templateValues(template,copy),...sectionEditor.values}})
+                  }} className="input-base">
+                    {Object.entries(TEMPLATE_LABELS).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              {sectionEditor.template === 'plain' ? (
+                <label className="mt-3 block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">محتوى حر</span><textarea value={sectionEditor.content} onChange={(e)=>setSectionEditor({...sectionEditor,content:e.target.value})} className="input-base min-h-72 resize-y" placeholder="محتوى القسم..."/></label>
+              ) : sectionEditor.template === 'capacity' ? (
+                <div className="mt-3 rounded-xl border border-primary/25 bg-primary/5 p-4 text-sm text-muted-foreground">هذا القالب يستخدم نفس تصميم جدول القوة الاستيعابية الأصلي.</div>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-xl border border-border bg-background/35 p-3"><p className="text-xs font-bold text-primary">المحرر مرتب حسب مكان ظهور النص في التصميم، وليس حقل واحد مبهم.</p></div>
+                  {TEMPLATE_KEYS[sectionEditor.template].map((key)=>{
+                    const field=SOPS_COPY_FIELDS.find((item)=>item.key===key)
+                    return <label key={key} className="block"><span className="mb-1.5 block text-xs font-bold text-muted-foreground">{field?.label ?? key}</span><textarea rows={field?.rows ?? 2} value={sectionEditor.values[key] ?? ''} onChange={(e)=>setSectionEditor({...sectionEditor,values:{...sectionEditor.values,[key]:e.target.value}})} className="input-base resize-y"/></label>
+                  })}
+                </div>
+              )}
+
+              <div className="mt-5 rounded-xl border border-border bg-background/30 p-4">
+                <p className="mb-3 text-xs font-bold text-muted-foreground">معاينة مباشرة لنفس شكل القسم في الموقع</p>
+                <CustomSopsSection section={{ type:'sops-section', id:sectionEditor.id ?? 'preview', title:sectionEditor.title, icon:'ScrollText', content:sectionEditor.content, template:sectionEditor.template, values:sectionEditor.values }} baseCopy={copy} />
+              </div>
+
               <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setSectionEditor(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted-foreground">إلغاء</button><button type="button" onClick={()=>void saveSectionEditor()} className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">حفظ القسم</button></div>
             </NeonCard>
           </div>
@@ -205,14 +302,30 @@ export function SopsPortal({ page }: { page?: PageDefinition }) {
   )
 }
 
-function CustomSopsSection({ section }: { section: CustomSection }) {
+function CustomSopsSection({ section, baseCopy }: { section: CustomSection; baseCopy: Copy }) {
+  const template = section.template ?? 'plain'
+  if (template === 'plain') {
+    return (
+      <NeonCard className="p-5">
+        <h3 className="font-heading text-lg font-extrabold text-primary">{section.title}</h3>
+        <div className="mt-3 whitespace-pre-wrap text-sm leading-8 text-foreground">{section.content || 'هذا القسم فارغ حالياً.'}</div>
+      </NeonCard>
+    )
+  }
+
+  const localCopy = { ...baseCopy, ...(section.values ?? {}) }
   return (
-    <NeonCard className="p-5">
-      <h3 className="font-heading text-lg font-extrabold text-primary">{section.title}</h3>
-      <div className="mt-3 whitespace-pre-wrap text-sm leading-8 text-foreground">
-        {section.content || 'هذا القسم فارغ حالياً.'}
-      </div>
-    </NeonCard>
+    <div className="flex flex-col gap-4">
+      <NeonCard className="p-4"><h3 className="font-heading text-lg font-extrabold text-primary">{section.title}</h3></NeonCard>
+      {template === 'general' ? <GeneralRules copy={localCopy} /> : null}
+      {template === 'cuffs' ? <CuffsTaser copy={localCopy} /> : null}
+      {template === 'fire' ? <FireArmed copy={localCopy} /> : null}
+      {template === 'arrest' ? <ArrestMiranda copy={localCopy} /> : null}
+      {template === 'pursuit' ? <PursuitPit copy={localCopy} /> : null}
+      {template === 'vehiclefire' ? <VehicleFire copy={localCopy} /> : null}
+      {template === 'capacity' ? <RobberyCapacity /> : null}
+      {template === 'failsafe' ? <FailSafe copy={localCopy} /> : null}
+    </div>
   )
 }
 
