@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookMarked, ChevronLeft, ChevronRight, ExternalLink, FileText, Search } from 'lucide-react'
 import { GOOGLE_SOPS, type GoogleSopsBlock, type GoogleSopsSection } from '@/lib/google-sops-data'
+import { GOOGLE_SOPS_SPECIAL } from '@/lib/google-sops-special'
 import { useSector } from '@/lib/sector-context'
 import { NeonCard, Pill } from '../primitives'
 import { cn } from '@/lib/utils'
@@ -134,13 +135,19 @@ export function GoogleSopsPortal() {
             </div>
           </div>
 
-          <article className="mx-auto max-w-4xl px-5 py-6 sm:px-8 sm:py-8">
-            <div className="space-y-5">
-              {active.blocks.map((block, index) => <SopsBlock key={index} block={block} />)}
-              {!active.blocks.length ? (
-                <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">هذا القسم ما فيه محتوى نصي حالياً.</div>
-              ) : null}
-            </div>
+          <article className="mx-auto max-w-5xl px-5 py-6 sm:px-8 sm:py-8">
+            {active.id === GOOGLE_SOPS_SPECIAL.service.sectionId ? (
+              <ServiceStripesSection />
+            ) : active.id === GOOGLE_SOPS_SPECIAL.medals.sectionId ? (
+              <MedalsSection />
+            ) : (
+              <div className="space-y-5">
+                {active.blocks.map((block, index) => <SopsBlock key={index} block={block} />)}
+                {!active.blocks.length ? (
+                  <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">هذا القسم ما فيه محتوى نصي حالياً.</div>
+                ) : null}
+              </div>
+            )}
           </article>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/10 px-5 py-4 sm:px-7">
@@ -186,6 +193,77 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
       {lines.map((line, index) => (
         <p key={index} className={cn(paragraphClass(block.style), index > 0 && 'mt-3')}>{line}</p>
       ))}
+    </div>
+  )
+}
+
+
+function ServiceStripesSection() {
+  const introLines = GOOGLE_SOPS_SPECIAL.service.intro.split('\n').map((line) => line.trim()).filter(Boolean)
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 text-center">
+        <h2 className="font-heading text-2xl font-black text-foreground">{introLines[0]}</h2>
+        <p className="mx-auto mt-3 max-w-4xl text-sm leading-8 text-foreground/85">{introLines.slice(1).join(' ')}</p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-background/35 shadow-[0_0_30px_hsl(var(--primary)/0.08)]">
+        <div className="grid grid-cols-[84px_minmax(0,1fr)_170px] border-b border-border bg-primary/8 text-center text-xs font-extrabold text-primary">
+          <div className="border-l border-border px-3 py-3">N</div>
+          <div className="border-l border-border px-3 py-3">الوصف وشروط الاستحقاق</div>
+          <div className="px-3 py-3">شكل الشارة</div>
+        </div>
+        {GOOGLE_SOPS_SPECIAL.service.rows.map((row) => (
+          <div key={row.n} className="grid grid-cols-[84px_minmax(0,1fr)_170px] items-stretch border-b border-border/70 last:border-b-0">
+            <div className="flex items-center justify-center border-l border-border/70 bg-muted/10 px-3 py-4 font-mono text-lg font-black text-primary">{row.n}</div>
+            <div className="flex items-center border-l border-border/70 px-5 py-4 text-right text-sm leading-7 text-foreground/90">{row.desc}</div>
+            <div className="flex items-center justify-center bg-background/20 p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={row.image} alt={'شارة خدمة رقم ' + row.n} className="max-h-20 max-w-[120px] object-contain" loading="lazy" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MedalsSection() {
+  const introLines = GOOGLE_SOPS_SPECIAL.medals.intro.split('\n').map((line) => line.trim()).filter(Boolean)
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 text-center">
+        <h2 className="font-heading text-2xl font-black text-foreground">{introLines[0]}</h2>
+        <p className="mx-auto mt-3 max-w-4xl text-sm leading-8 text-foreground/85">{introLines.slice(1).join(' ')}</p>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-border bg-background/35 shadow-[0_0_30px_hsl(var(--primary)/0.08)]">
+        <div className="min-w-[860px]">
+          <div className="grid grid-cols-[64px_150px_190px_90px_minmax(0,1fr)] border-b border-border bg-primary/8 text-center text-xs font-extrabold text-primary">
+            <div className="border-l border-border px-2 py-3">N</div>
+            <div className="border-l border-border px-2 py-3">الشكل</div>
+            <div className="border-l border-border px-2 py-3">اسم الميدالية / الشارة</div>
+            <div className="border-l border-border px-2 py-3">النقاط</div>
+            <div className="px-3 py-3">الوصف</div>
+          </div>
+          {GOOGLE_SOPS_SPECIAL.medals.rows.map((row) => (
+            <div key={row.n} className="grid grid-cols-[64px_150px_190px_90px_minmax(0,1fr)] items-stretch border-b border-border/70 last:border-b-0">
+              <div className="flex items-center justify-center border-l border-border/70 bg-muted/10 px-2 py-4 font-mono text-base font-black text-primary">{row.n}</div>
+              <div className="flex items-center justify-center border-l border-border/70 bg-background/20 p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={row.image} alt={row.name} className="max-h-20 max-w-[120px] object-contain" loading="lazy" />
+              </div>
+              <div className="flex items-center justify-center border-l border-border/70 px-3 py-4 text-center">
+                <span className="font-mono text-[12px] font-bold leading-6 text-foreground">{row.name}</span>
+              </div>
+              <div className="flex items-center justify-center border-l border-border/70 px-2 py-4">
+                <span className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-sm font-black text-primary">{row.points}</span>
+              </div>
+              <div className="flex items-center px-5 py-4 text-right text-sm leading-7 text-foreground/90">{row.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
