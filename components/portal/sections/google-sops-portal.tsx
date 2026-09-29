@@ -327,31 +327,97 @@ function SopsCoverSection({ agency, reference, code }: { agency: string; referen
   )
 }
 
+function rankGroupsForSector(sectorCode: string, ranks: string[]) {
+  const normalized = ranks.map((rank) => ({ rank, key: rank.toLowerCase() }))
+
+  if (sectorCode === 'LSPD') {
+    return [
+      { title: 'ينادى بـ Cadet / Officer', ranks: ranks.filter((rank) => /cadet|officer one|officer two|officer three|senior officer/i.test(rank)) },
+      { title: 'ينادى بـ Senior Lead / Sergeant / Lieutenant', ranks: ranks.filter((rank) => /senior lead|sergeant|lieutenant/i.test(rank)) },
+      { title: 'ينادى بـ Captain', ranks: ranks.filter((rank) => /^captain/i.test(rank)) },
+      { title: 'ينادى بـ Commander / Chief', ranks: ranks.filter((rank) => /commander|chief/i.test(rank)) },
+    ].filter((group) => group.ranks.length)
+  }
+
+  if (sectorCode === 'BCSO') {
+    return [
+      { title: 'ينادى بـ Cadet / Deputy', ranks: ranks.filter((rank) => /cadet|deputy i|deputy ii|senior deputy/i.test(rank)) },
+      { title: 'ينادى بـ Senior Lead / Sergeant / Lieutenant', ranks: ranks.filter((rank) => /senior lead deputy|sergeant|lieutenant/i.test(rank)) },
+      { title: 'ينادى بـ Captain', ranks: ranks.filter((rank) => /^captain/i.test(rank)) },
+      { title: 'ينادى بـ Chief Deputy / UnderSheriff / Sheriff', ranks: ranks.filter((rank) => /chief deputy|undersheriff|sheriff/i.test(rank)) },
+    ].filter((group) => group.ranks.length)
+  }
+
+  if (sectorCode === 'SASP') {
+    return [
+      { title: 'ينادى بـ Cadet / Officer', ranks: ranks.filter((rank) => /cadet|officer i|officer ii|officer iii|senior officer/i.test(rank)) },
+      { title: 'ينادى بـ Senior Lead / Sergeant / Lieutenant', ranks: ranks.filter((rank) => /senior lead|sergeant|lieutenant/i.test(rank)) },
+      { title: 'ينادى بـ Captain / Chief', ranks: ranks.filter((rank) => /captain|assistant chief|chief of chp/i.test(rank)) },
+      { title: 'ينادى بـ Commissioner', ranks: ranks.filter((rank) => /commissioner/i.test(rank)) },
+    ].filter((group) => group.ranks.length)
+  }
+
+  // Custom sectors: split the configured hierarchy into four readable bands while preserving the user's exact order.
+  const size = Math.max(1, Math.ceil(normalized.length / 4))
+  return Array.from({ length: 4 }, (_, index) => {
+    const slice = normalized.slice(index * size, (index + 1) * size).map((item) => item.rank)
+    return slice.length ? { title: 'مجموعة الرتب ' + (index + 1), ranks: slice } : null
+  }).filter(Boolean) as Array<{ title: string; ranks: string[] }>
+}
+
 function RankNamesSection({ sectorCode, ranks }: { sectorCode: string; ranks: string[] }) {
+  const groups = rankGroupsForSector(sectorCode, ranks)
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <section className="rounded-2xl border border-primary/30 bg-primary/[0.05] p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-wider text-primary">{sectorCode} RANK STRUCTURE</p>
-            <h2 className="mt-1 font-heading text-xl font-black text-foreground">مسميات الرتب المعتمدة للقطاع</h2>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-primary">{sectorCode} RANK NAMING GUIDE</p>
+            <h2 className="mt-1 font-heading text-xl font-black text-foreground">نبذة عن طريقة مسميات الرتب</h2>
           </div>
           <span className="rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 font-mono text-xs font-bold text-primary">{ranks.length} رتبة</span>
         </div>
-        <p className="mt-3 text-xs leading-6 text-muted-foreground">
-          هذه القائمة تُسحب مباشرة من رتب القطاع الحالية في إدارة القطاعات. أي تعديل على رتب القطاع ينعكس هنا تلقائياً.
+        <p className="mt-3 text-xs leading-7 text-muted-foreground">
+          هذا القسم يشرح طريقة تجميع ومسميات الرتب داخل القطاع المختار. الفكرة العامة مشتركة بين القطاعات، لكن أسماء الرتب ومسميات القيادة تختلف من قطاع إلى آخر. القوائم أدناه تُسحب مباشرة من رتب القطاع التي أنت محددها في إدارة القطاعات، لذلك أي تعديل هناك ينعكس هنا تلقائياً.
         </p>
       </section>
 
-      <div className="grid gap-2">
-        {ranks.map((rank, index) => (
-          <div key={rank + index} className="flex items-center gap-3 rounded-xl border border-border bg-background/40 px-4 py-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.06] font-mono text-[11px] font-black text-primary">{index + 1}</span>
-            <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
-          </div>
+      <div className="space-y-3">
+        {groups.map((group, groupIndex) => (
+          <section key={group.title} className="rounded-2xl border border-border bg-background/30 p-5 sm:p-6">
+            <h3 className="font-heading text-lg font-black text-destructive sm:text-xl">{group.title}</h3>
+            <div className="mt-4 grid gap-2">
+              {group.ranks.map((rank, index) => (
+                <div key={rank + index} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/45 px-4 py-3">
+                  <span className="font-mono text-[10px] text-muted-foreground">{String(groupIndex + 1).padStart(2, '0')}.{String(index + 1).padStart(2, '0')}</span>
+                  <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         ))}
-        {!ranks.length ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">لا توجد رتب مضبوطة لهذا القطاع حالياً.</div> : null}
       </div>
+
+      <section className="rounded-2xl border border-primary/25 bg-primary/[0.035] p-5 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-primary">{sectorCode} RANK STRUCTURE</p>
+            <h3 className="mt-1 font-heading text-lg font-black text-foreground">جميع رتب القطاع بالترتيب</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">نفس ترتيب إدارة القطاعات</span>
+        </div>
+
+        <div className="grid gap-2">
+          {ranks.map((rank, index) => (
+            <div key={rank + '-full-' + index} className="flex items-center gap-3 rounded-xl border border-border bg-background/40 px-4 py-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.06] font-mono text-[11px] font-black text-primary">{index + 1}</span>
+              <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
+            </div>
+          ))}
+          {!ranks.length ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">لا توجد رتب مضبوطة لهذا القطاع حالياً.</div> : null}
+        </div>
+      </section>
     </div>
   )
 }
