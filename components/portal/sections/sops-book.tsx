@@ -65,8 +65,12 @@ export function SopsBook({ page }: { page?: PageDefinition }) {
   )
 
   const leaves=useMemo<BookLeaf[]>(
-    ()=>customBookPages.length?customBookPages.map((block)=>({id:block.id,title:block.title,body:block.body})):generatedLeaves,
-    [customBookPages,generatedLeaves],
+    ()=>customBookPages.length
+      ? customBookPages.map((block)=>({id:block.id,title:block.title,body:block.body}))
+      : page?.slug === 'future-book'
+        ? [{ id:'blank-start', title:'', body:'' }]
+        : generatedLeaves,
+    [customBookPages,generatedLeaves,page?.slug],
   )
 
   const pages = useMemo(() => {
