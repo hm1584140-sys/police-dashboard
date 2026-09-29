@@ -40,8 +40,39 @@ function readableChunks(value: string) {
   return chunks
 }
 
+const SECTOR_SOPS_META: Record<string, { agency: string; reference: string; subtitle: string }> = {
+  LSPD: {
+    agency: 'Los Santos Police Department',
+    reference: 'LAPD',
+    subtitle: 'شرطة مدينة لوس سانتوس',
+  },
+  BCSO: {
+    agency: "Blaine County Sheriff's Office",
+    reference: 'LASD',
+    subtitle: 'مكتب شريف مقاطعة بلين',
+  },
+  SASP: {
+    agency: 'San Andreas State Police',
+    reference: 'CHP',
+    subtitle: 'شرطة ولاية سان أندرياس والطرق السريعة',
+  },
+}
+
+function adaptSectorText(value: string, code: string, agency: string, reference: string) {
+  if (code === 'LSPD') return value
+  return value
+    .replaceAll('Los Santos Police Department', agency)
+    .replaceAll('LSPD', code)
+    .replaceAll('LAPD', reference)
+}
+
 export function GoogleSopsPortal() {
   const { currentSector } = useSector()
+  const sectorMeta = SECTOR_SOPS_META[currentSector.code ?? currentSector.id] ?? {
+    agency: currentSector.name || currentSector.code || currentSector.id,
+    reference: currentSector.code ?? currentSector.id,
+    subtitle: currentSector.arabic || currentSector.description || '',
+  }
   const sections = GOOGLE_SOPS.sections as readonly GoogleSopsSection[]
   const [activeId, setActiveId] = useState(sections[0]?.id ?? '')
   const [query, setQuery] = useState('')
@@ -58,10 +89,15 @@ export function GoogleSopsPortal() {
     const q = cleanForSearch(query)
     if (!q) return []
     return sections.filter((section) => {
-      const haystack = [section.title, ...section.blocks.map((block) => block.type === 'paragraph' ? block.text : block.alt)].join(' ')
+      const haystack = [
+        adaptSectorText(section.title, currentSector.code ?? currentSector.id, sectorMeta.agency, sectorMeta.reference),
+        ...section.blocks.map((block) => block.type === 'paragraph'
+          ? adaptSectorText(block.text, currentSector.code ?? currentSector.id, sectorMeta.agency, sectorMeta.reference)
+          : block.alt),
+      ].join(' ')
       return cleanForSearch(haystack).includes(q)
     })
-  }, [query, sections])
+  }, [query, sections, currentSector, sectorMeta])
 
   useEffect(() => {
     if (!sections.some((section) => section.id === activeId) && sections[0]) setActiveId(sections[0].id)
@@ -111,7 +147,7 @@ export function GoogleSopsPortal() {
                       'mb-1 flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-right transition-colors',
                       selected ? 'border-primary/35 bg-primary/12 text-primary' : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground',
                     )}>
-                    <span className="min-w-0 truncate font-heading text-xs font-bold">{section.title}</span>
+                    <span className="min-w-0 truncate font-heading text-xs font-bold">{adaptSectorText(section.title, currentSector.code ?? currentSector.id, sectorMeta.agency, sectorMeta.reference)}</span>
                     {section.level > 0 ? <span className="shrink-0 font-mono text-[9px] opacity-50">L{section.level}</span> : null}
                   </button>
                 )
@@ -137,7 +173,7 @@ export function GoogleSopsPortal() {
                   <Pill tone="muted">SOPs</Pill>
                   {parentTitle ? <span className="text-[10px] text-muted-foreground">{parentTitle}</span> : null}
                 </div>
-                <h1 className="font-heading text-2xl font-black leading-tight text-foreground sm:text-3xl">{active.title}</h1>
+                <h1 className="font-heading text-2xl font-black leading-tight text-foreground sm:text-3xl">{adaptSectorText(active.title, currentSector.code ?? currentSector.id, sectorMeta.agency, sectorMeta.reference)}</h1>
                 <p className="mt-2 text-xs text-muted-foreground">
                   القسم {activeIndex + 1} من {sections.length} • مستورد من المستند الرسمي
                 </p>
@@ -155,18 +191,29 @@ export function GoogleSopsPortal() {
             </div>
           </div>
 
+          <div className="mx-5 mt-5 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-3 sm:mx-7">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-primary/35 bg-primary/10 px-2 py-1 font-mono font-bold text-primary">{currentSector.code ?? currentSector.id}</span>
+              <span className="font-heading font-extrabold text-foreground">{sectorMeta.agency}</span>
+              <span className="text-muted-foreground">مرجع واقعي: {sectorMeta.reference}</span>
+            </div>
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">
+              هذا الدليل يحتوي القواعد والإجراءات التشغيلية المشتركة. مسميات الرتب والمكاتب والوحدات والتسميات الإدارية تتغير تلقائياً حسب القطاع المختار، بينما تبقى القواعد العامة كما هي ما لم يُذكر خلاف ذلك.
+            </p>
+          </div>
+
           <article className="mx-auto max-w-5xl px-5 py-6 sm:px-8 sm:py-8">
             {active.id === 't.0' ? (
-              <SopsCoverSection />
+              <SopsCoverSection agency={sectorMeta.agency} reference={sectorMeta.reference} code={currentSector.code ?? currentSector.id} />
             ) : active.id === 't.b6akqpo520ow' ? (
-              <RankNamesSection />
+              <RankNamesSection sectorCode={currentSector.code ?? currentSector.id} ranks={currentSector.ranks} />
             ) : active.id === GOOGLE_SOPS_SPECIAL.service.sectionId ? (
               <ServiceStripesSection />
             ) : active.id === GOOGLE_SOPS_SPECIAL.medals.sectionId ? (
               <MedalsSection />
             ) : (
               <div className="space-y-5">
-                {active.blocks.map((block, index) => <SopsBlock key={index} block={block} />)}
+                {active.blocks.map((block, index) => <SopsBlock key={index} block={block} sectorCode={currentSector.code ?? currentSector.id} agency={sectorMeta.agency} reference={sectorMeta.reference} />)}
                 {!active.blocks.length ? (
                   <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">هذا القسم ما فيه محتوى نصي حالياً.</div>
                 ) : null}
@@ -185,7 +232,7 @@ export function GoogleSopsPortal() {
   )
 }
 
-function SopsBlock({ block }: { block: GoogleSopsBlock }) {
+function SopsBlock({ block, sectorCode, agency, reference }: { block: GoogleSopsBlock; sectorCode: string; agency: string; reference: string }) {
   if (block.type === 'image') {
     return (
       <div className="flex justify-center rounded-2xl border border-border bg-background/40 p-4">
@@ -195,9 +242,10 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
     )
   }
 
-  const chunks = readableChunks(block.text)
+  const adaptedText = adaptSectorText(block.text, sectorCode, agency, reference)
+  const chunks = readableChunks(adaptedText)
   const isHeading = block.style === 'HEADING_1' || block.style === 'HEADING_2' || block.style === 'HEADING_3' || block.style === 'TITLE'
-  const tooLongForHeading = block.text.length > 120 || chunks.length > 2
+  const tooLongForHeading = adaptedText.length > 120 || chunks.length > 2
 
   if (block.list && chunks.length) {
     return (
@@ -210,7 +258,7 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
   }
 
   if (isHeading && !tooLongForHeading) {
-    return <h2 className={cn(paragraphClass(block.style), 'break-words text-right')}>{block.text}</h2>
+    return <h2 className={cn(paragraphClass(block.style), 'break-words text-right')}>{adaptedText}</h2>
   }
 
   return (
@@ -235,7 +283,7 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
 }
 
 
-function SopsCoverSection() {
+function SopsCoverSection({ agency, reference, code }: { agency: string; reference: string; code: string }) {
   const cover = GOOGLE_SOPS.sections.find((section) => section.id === 't.0')
   const image = cover?.blocks.find((block) => block.type === 'image')
 
@@ -251,7 +299,7 @@ function SopsCoverSection() {
       <div className="flex items-center justify-center rounded-2xl border border-border bg-background/30 px-6 py-9 text-center sm:px-10 sm:py-11">
         <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-2.5">
           <h2 className="font-heading text-2xl font-black leading-tight text-destructive sm:text-3xl">
-            {'{ Los Santos Police Department }'}
+            {'{ ' + agency + ' }'}
           </h2>
 
           <div className="font-heading text-2xl font-bold leading-tight text-foreground sm:text-3xl">
@@ -264,8 +312,14 @@ function SopsCoverSection() {
             SOPs
           </div>
 
-          <div className="mt-1 font-heading text-base font-extrabold text-foreground sm:text-xl">
-            By : Ofc. - Jonathan L.Kennedy
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2 font-heading text-sm font-extrabold text-foreground sm:text-lg">
+            <span>{code}</span>
+            <span className="text-muted-foreground">•</span>
+            <span>Reference: {reference}</span>
+            {code === 'LSPD' ? <>
+              <span className="text-muted-foreground">•</span>
+              <span>By : Ofc. - Jonathan L.Kennedy</span>
+            </> : null}
           </div>
         </div>
       </div>
@@ -273,27 +327,31 @@ function SopsCoverSection() {
   )
 }
 
-function RankNamesSection() {
+function RankNamesSection({ sectorCode, ranks }: { sectorCode: string; ranks: string[] }) {
   return (
     <div className="space-y-4">
-      {GOOGLE_SOPS_SPECIAL.ranks.groups.map((group, groupIndex) => (
-        <section key={group.call} className="rounded-2xl border border-border bg-background/30 p-5 sm:p-6">
-          <h2 className="font-heading text-lg font-black text-destructive sm:text-xl">
-            {group.call}
-          </h2>
-          <div className="mt-4 grid gap-2">
-            {group.ranks.map((rank, index) => (
-              <div
-                key={rank}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/45 px-4 py-3"
-              >
-                <span className="font-mono text-[10px] text-muted-foreground">{String(groupIndex + 1).padStart(2, '0')}.{String(index + 1).padStart(2, '0')}</span>
-                <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
-              </div>
-            ))}
+      <section className="rounded-2xl border border-primary/30 bg-primary/[0.05] p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-primary">{sectorCode} RANK STRUCTURE</p>
+            <h2 className="mt-1 font-heading text-xl font-black text-foreground">مسميات الرتب المعتمدة للقطاع</h2>
           </div>
-        </section>
-      ))}
+          <span className="rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 font-mono text-xs font-bold text-primary">{ranks.length} رتبة</span>
+        </div>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">
+          هذه القائمة تُسحب مباشرة من رتب القطاع الحالية في إدارة القطاعات. أي تعديل على رتب القطاع ينعكس هنا تلقائياً.
+        </p>
+      </section>
+
+      <div className="grid gap-2">
+        {ranks.map((rank, index) => (
+          <div key={rank + index} className="flex items-center gap-3 rounded-xl border border-border bg-background/40 px-4 py-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.06] font-mono text-[11px] font-black text-primary">{index + 1}</span>
+            <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
+          </div>
+        ))}
+        {!ranks.length ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">لا توجد رتب مضبوطة لهذا القطاع حالياً.</div> : null}
+      </div>
     </div>
   )
 }
