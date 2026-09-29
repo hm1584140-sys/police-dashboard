@@ -108,7 +108,7 @@ export const GOOGLE_SOPS_SPECIAL = {
         "image": "https://lh7-rt.googleusercontent.com/docsz/AD_4nXdvSV4hI5NnFLOY0O3jcC3HN8JXD-cYRjs5TxUOL8Lssj8qOLlgz3IZhd2zHbYf1p98rVrQRKm1JhB50Flj-txsyomRRVUIM_Thc327zODfQjCtMMvtXHTvww5htBc-v98gq9LTbKqoMm8UJ-d48a7EaMsBAabcvGOMevq0k6eylWcn1Ns=s2048?key=pW1uRbgD1-FOebYBD6MBHA"
       }
     ]
-  ,
+  },
   ranks: {
     sectionId: "t.b6akqpo520ow",
     groups: [
