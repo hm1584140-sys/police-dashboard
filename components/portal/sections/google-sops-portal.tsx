@@ -236,17 +236,20 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
 
 
 function SopsCoverSection() {
-  const coverImage = GOOGLE_SOPS.sections.find((section) => section.id === 't.0')?.blocks.find((block) => block.type === 'image')
+  const cover = GOOGLE_SOPS.sections.find((section) => section.id === 't.0')
+  const image = cover?.blocks.find((block) => block.type === 'image')
+
   return (
-    <div className="flex min-h-[560px] items-center justify-center">
-      <div className="w-full max-w-3xl rounded-2xl border border-border bg-background/30 px-6 py-8 text-center sm:px-10 sm:py-10">
-        <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-4">
-          {coverImage && coverImage.type === 'image' ? (
-            <div className="mb-2 flex w-full justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverImage.src} alt={coverImage.alt} className="max-h-[360px] max-w-full object-contain" />
-            </div>
-          ) : null}
+    <div className="space-y-5">
+      {image && image.type === 'image' ? (
+        <div className="flex justify-center rounded-2xl border border-border bg-background/35 p-5 sm:p-7">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image.src} alt={image.alt} className="max-h-[430px] max-w-full object-contain" />
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-center rounded-2xl border border-border bg-background/30 px-6 py-9 text-center sm:px-10 sm:py-11">
+        <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-2.5">
           <h2 className="font-heading text-2xl font-black leading-tight text-destructive sm:text-3xl">
             {'{ Los Santos Police Department }'}
           </h2>
@@ -271,40 +274,25 @@ function SopsCoverSection() {
 }
 
 function RankNamesSection() {
-  const groups = [
-    {
-      call: 'ينادى بـ Cadet / Officer',
-      ranks: ['Cadet', 'Officer One', 'Officer Two', 'Officer Three (رتبة اختيارية يمكن إضافتها ويمكن لا)', 'Senior Officer'],
-    },
-    {
-      call: 'ينادى بـ Senior Lead / Sergeant / Lieutenant',
-      ranks: ['Senior Lead Officer', 'Sergeant', 'Sergeant II', 'Lieutenant', 'Lieutenant II'],
-    },
-    {
-      call: 'ينادى بـ Captain',
-      ranks: ['Captain', 'Captain II', 'Captain III'],
-    },
-    {
-      call: 'ينادى بـ Commander / Chief',
-      ranks: ['GENERAL', 'COMMANDER', 'Deputy Chief Of Police', 'Assistant Chief of Police', 'Chief Of Police'],
-    },
-  ]
-
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      {groups.map((group) => (
-        <div key={group.call} className="rounded-2xl border border-border bg-background/30 p-5">
-          <div className="mb-4 text-right font-heading text-xl font-black text-destructive">
+    <div className="space-y-4">
+      {GOOGLE_SOPS_SPECIAL.ranks.groups.map((group, groupIndex) => (
+        <section key={group.call} className="rounded-2xl border border-border bg-background/30 p-5 sm:p-6">
+          <h2 className="font-heading text-lg font-black text-destructive sm:text-xl">
             {group.call}
-          </div>
-          <div className="flex flex-col items-start gap-2">
-            {group.ranks.map((rank) => (
-              <div key={rank} className="rounded-md bg-black/75 px-3 py-1.5 font-mono text-sm font-bold text-white shadow-sm">
-                {rank}
+          </h2>
+          <div className="mt-4 grid gap-2">
+            {group.ranks.map((rank, index) => (
+              <div
+                key={rank}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/45 px-4 py-3"
+              >
+                <span className="font-mono text-[10px] text-muted-foreground">{String(groupIndex + 1).padStart(2, '0')}.{String(index + 1).padStart(2, '0')}</span>
+                <span className="flex-1 text-right font-heading text-base font-extrabold text-foreground sm:text-lg">{rank}</span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   )
