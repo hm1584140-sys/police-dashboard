@@ -156,7 +156,9 @@ export function GoogleSopsPortal() {
           </div>
 
           <article className="mx-auto max-w-5xl px-5 py-6 sm:px-8 sm:py-8">
-            {active.id === GOOGLE_SOPS_SPECIAL.service.sectionId ? (
+            {active.id === 't.0' ? (
+              <SopsCoverSection />
+            ) : active.id === GOOGLE_SOPS_SPECIAL.service.sectionId ? (
               <ServiceStripesSection />
             ) : active.id === GOOGLE_SOPS_SPECIAL.medals.sectionId ? (
               <MedalsSection />
@@ -230,6 +232,34 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
   )
 }
 
+
+function SopsCoverSection() {
+  return (
+    <div className="flex min-h-[420px] items-center justify-center">
+      <div className="w-full max-w-3xl rounded-2xl border border-border bg-background/30 px-6 py-10 text-center sm:px-10 sm:py-14">
+        <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3">
+          <h2 className="font-heading text-2xl font-black leading-tight text-destructive sm:text-3xl">
+            {'{ Los Santos Police Department }'}
+          </h2>
+
+          <div className="font-heading text-2xl font-bold leading-tight text-foreground sm:text-3xl">
+            <span className="text-destructive">S</span>tandard{' '}
+            <span className="text-destructive">O</span>perating{' '}
+            <span className="text-destructive">P</span>rocedures
+          </div>
+
+          <div className="font-heading text-3xl font-black text-destructive sm:text-4xl">
+            SOPs
+          </div>
+
+          <div className="mt-1 font-heading text-base font-extrabold text-foreground sm:text-xl">
+            By : Ofc. - Jonathan L.Kennedy
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function ServiceStripesSection() {
   const introLines = GOOGLE_SOPS_SPECIAL.service.intro.split('\n').map((line) => line.trim()).filter(Boolean)
