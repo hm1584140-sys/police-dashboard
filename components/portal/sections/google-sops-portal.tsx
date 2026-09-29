@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BookMarked, ChevronLeft, ChevronRight, ExternalLink, FileText, Search } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, ExternalLink, Search } from 'lucide-react'
 import { GOOGLE_SOPS, type GoogleSopsBlock, type GoogleSopsSection } from '@/lib/google-sops-data'
 import { GOOGLE_SOPS_SPECIAL } from '@/lib/google-sops-special'
 import { useSector } from '@/lib/sector-context'
@@ -18,6 +18,26 @@ function paragraphClass(style: string) {
 
 function cleanForSearch(value: string) {
   return value.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function readableChunks(value: string) {
+  const base = value
+    .replace(/\u000b/g, '\n')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const chunks: string[] = []
+  for (const line of base) {
+    const numbered = line
+      .split(/(?=(?:^|\s)\d+(?:\.\d+)*\s*[-–—.)]\s*)/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+
+    if (numbered.length > 1) chunks.push(...numbered)
+    else chunks.push(line)
+  }
+  return chunks
 }
 
 export function GoogleSopsPortal() {
@@ -110,7 +130,7 @@ export function GoogleSopsPortal() {
       <main className="min-w-0">
         <NeonCard glow className="overflow-hidden p-0">
           <div className="border-b border-border bg-gradient-to-l from-primary/12 via-primary/4 to-transparent px-5 py-5 sm:px-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Pill tone="neon">{currentSector.code ?? currentSector.id}</Pill>
@@ -122,13 +142,13 @@ export function GoogleSopsPortal() {
                   القسم {activeIndex + 1} من {sections.length} • مستورد من المستند الرسمي
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2 md:pt-1">
                 <button type="button" disabled={activeIndex === 0} onClick={() => setActiveId(sections[activeIndex - 1].id)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/50 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary disabled:opacity-30">
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-border bg-background/50 px-3 text-xs font-bold text-muted-foreground hover:text-primary disabled:opacity-30">
                   <ChevronRight className="size-4" /> السابق
                 </button>
                 <button type="button" disabled={activeIndex >= sections.length - 1} onClick={() => setActiveId(sections[activeIndex + 1].id)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-bold text-primary disabled:opacity-30">
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-primary/35 bg-primary/10 px-3 text-xs font-bold text-primary disabled:opacity-30">
                   التالي <ChevronLeft className="size-4" />
                 </button>
               </div>
@@ -150,13 +170,9 @@ export function GoogleSopsPortal() {
             )}
           </article>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/10 px-5 py-4 sm:px-7">
+          <div className="border-t border-border bg-muted/10 px-5 py-3 sm:px-7">
             <div className="text-[10px] text-muted-foreground">
               المصدر: {GOOGLE_SOPS.title} • Revision {String(GOOGLE_SOPS.revisionId).slice(0, 10)}
-            </div>
-            <div className="flex gap-2">
-              {activeIndex > 0 ? <button type="button" onClick={() => setActiveId(sections[activeIndex - 1].id)} className="text-xs font-bold text-muted-foreground hover:text-primary">← {sections[activeIndex - 1].title}</button> : null}
-              {activeIndex < sections.length - 1 ? <button type="button" onClick={() => setActiveId(sections[activeIndex + 1].id)} className="text-xs font-bold text-primary">{sections[activeIndex + 1].title} →</button> : null}
             </div>
           </div>
         </NeonCard>
@@ -175,24 +191,41 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
     )
   }
 
-  const lines = block.text.split('\n').map((line) => line.trim()).filter(Boolean)
-  if (block.list && lines.length) {
+  const chunks = readableChunks(block.text)
+  const isHeading = block.style === 'HEADING_1' || block.style === 'HEADING_2' || block.style === 'HEADING_3' || block.style === 'TITLE'
+  const tooLongForHeading = block.text.length > 120 || chunks.length > 2
+
+  if (block.list && chunks.length) {
     return (
       <ul className="space-y-2 rounded-xl border border-border bg-background/35 p-5 pr-8">
-        {lines.map((line, index) => <li key={index} className="list-disc text-[15px] leading-8 text-foreground/90 marker:text-primary">{line}</li>)}
+        {chunks.map((line, index) => (
+          <li key={index} className="list-disc break-words text-right text-[15px] leading-8 text-foreground/90 marker:text-primary">{line}</li>
+        ))}
       </ul>
     )
   }
 
-  if (block.style === 'HEADING_1' || block.style === 'HEADING_2' || block.style === 'HEADING_3' || block.style === 'TITLE') {
-    return <h2 className={paragraphClass(block.style)}>{block.text}</h2>
+  if (isHeading && !tooLongForHeading) {
+    return <h2 className={cn(paragraphClass(block.style), 'break-words text-right')}>{block.text}</h2>
   }
 
   return (
-    <div className="rounded-xl border border-transparent px-1 py-0.5 transition-colors hover:border-primary/10 hover:bg-primary/[0.02]">
-      {lines.map((line, index) => (
-        <p key={index} className={cn(paragraphClass(block.style), index > 0 && 'mt-3')}>{line}</p>
-      ))}
+    <div className="space-y-3 rounded-xl border border-border/40 bg-background/25 p-4 sm:p-5">
+      {chunks.map((line, index) => {
+        const numbered = /^\d+(?:\.\d+)*\s*[-–—.)]/.test(line)
+        return (
+          <p
+            key={index}
+            className={cn(
+              'break-words whitespace-pre-wrap text-right text-[15px] leading-8 text-foreground/90',
+              numbered && 'rounded-lg border-r-2 border-primary/55 bg-primary/[0.04] px-3 py-2 font-semibold',
+              isHeading && index === 0 && 'font-heading text-lg font-extrabold text-primary',
+            )}
+          >
+            {line}
+          </p>
+        )
+      })}
     </div>
   )
 }
