@@ -158,6 +158,8 @@ export function GoogleSopsPortal() {
           <article className="mx-auto max-w-5xl px-5 py-6 sm:px-8 sm:py-8">
             {active.id === 't.0' ? (
               <SopsCoverSection />
+            ) : active.id === 't.b6akqpo520ow' ? (
+              <RankNamesSection />
             ) : active.id === GOOGLE_SOPS_SPECIAL.service.sectionId ? (
               <ServiceStripesSection />
             ) : active.id === GOOGLE_SOPS_SPECIAL.medals.sectionId ? (
@@ -234,10 +236,17 @@ function SopsBlock({ block }: { block: GoogleSopsBlock }) {
 
 
 function SopsCoverSection() {
+  const coverImage = GOOGLE_SOPS.sections.find((section) => section.id === 't.0')?.blocks.find((block) => block.type === 'image')
   return (
-    <div className="flex min-h-[420px] items-center justify-center">
-      <div className="w-full max-w-3xl rounded-2xl border border-border bg-background/30 px-6 py-10 text-center sm:px-10 sm:py-14">
-        <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3">
+    <div className="flex min-h-[560px] items-center justify-center">
+      <div className="w-full max-w-3xl rounded-2xl border border-border bg-background/30 px-6 py-8 text-center sm:px-10 sm:py-10">
+        <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-4">
+          {coverImage && coverImage.type === 'image' ? (
+            <div className="mb-2 flex w-full justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImage.src} alt={coverImage.alt} className="max-h-[360px] max-w-full object-contain" />
+            </div>
+          ) : null}
           <h2 className="font-heading text-2xl font-black leading-tight text-destructive sm:text-3xl">
             {'{ Los Santos Police Department }'}
           </h2>
@@ -257,6 +266,46 @@ function SopsCoverSection() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function RankNamesSection() {
+  const groups = [
+    {
+      call: 'ينادى بـ Cadet / Officer',
+      ranks: ['Cadet', 'Officer One', 'Officer Two', 'Officer Three (رتبة اختيارية يمكن إضافتها ويمكن لا)', 'Senior Officer'],
+    },
+    {
+      call: 'ينادى بـ Senior Lead / Sergeant / Lieutenant',
+      ranks: ['Senior Lead Officer', 'Sergeant', 'Sergeant II', 'Lieutenant', 'Lieutenant II'],
+    },
+    {
+      call: 'ينادى بـ Captain',
+      ranks: ['Captain', 'Captain II', 'Captain III'],
+    },
+    {
+      call: 'ينادى بـ Commander / Chief',
+      ranks: ['GENERAL', 'COMMANDER', 'Deputy Chief Of Police', 'Assistant Chief of Police', 'Chief Of Police'],
+    },
+  ]
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      {groups.map((group) => (
+        <div key={group.call} className="rounded-2xl border border-border bg-background/30 p-5">
+          <div className="mb-4 text-right font-heading text-xl font-black text-destructive">
+            {group.call}
+          </div>
+          <div className="flex flex-col items-start gap-2">
+            {group.ranks.map((rank) => (
+              <div key={rank} className="rounded-md bg-black/75 px-3 py-1.5 font-mono text-sm font-bold text-white shadow-sm">
+                {rank}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
