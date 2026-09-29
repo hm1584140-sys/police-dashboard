@@ -143,7 +143,6 @@ export const GOOGLE_SOPS_SPECIAL = {
       {
         call: "ينادى بـ Commander / Chief",
         ranks: [
-          "GENERAL",
           "COMMANDER",
           "Deputy Chief Of Police",
           "Assistant Chief of Police",
