@@ -433,6 +433,27 @@ function RankNamesSection({ sectorCode, ranks }: { sectorCode: string; ranks: st
   )
 }
 
+// Keep the supplied artwork bundled with the site, independent of Google Docs URLs.
+function SopAwardImage({ image, label, crop }: {
+  image: string
+  label: string
+  crop: { x: number; y: number; width: number; height: number }
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="block shrink-0 rounded-sm bg-white bg-no-repeat"
+      style={{
+        width: crop.width,
+        height: crop.height,
+        backgroundImage: `url("${image}")`,
+        backgroundPosition: `-${crop.x}px -${crop.y}px`,
+      }}
+    />
+  )
+}
+
 function ServiceStripesSection() {
   const introLines = GOOGLE_SOPS_SPECIAL.service.intro.split('\n').map((line) => line.trim()).filter(Boolean)
   return (
@@ -453,8 +474,7 @@ function ServiceStripesSection() {
             <div className="flex items-center justify-center border-l border-border/70 bg-muted/10 px-3 py-4 font-mono text-lg font-black text-primary">{row.n}</div>
             <div className="flex items-center border-l border-border/70 px-5 py-4 text-right text-sm leading-7 text-foreground/90">{row.desc}</div>
             <div className="flex items-center justify-center bg-background/20 p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={row.image} alt={'شارة خدمة رقم ' + row.n} className="max-h-20 max-w-[120px] object-contain" loading="lazy" />
+              <SopAwardImage image={row.image} crop={row.crop} label={'شارة خدمة رقم ' + row.n} />
             </div>
           </div>
         ))}
@@ -485,8 +505,7 @@ function MedalsSection() {
             <div key={row.n} className="grid grid-cols-[64px_150px_190px_90px_minmax(0,1fr)] items-stretch border-b border-border/70 last:border-b-0">
               <div className="flex items-center justify-center border-l border-border/70 bg-muted/10 px-2 py-4 font-mono text-base font-black text-primary">{row.n}</div>
               <div className="flex items-center justify-center border-l border-border/70 bg-background/20 p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={row.image} alt={row.name} className="max-h-20 max-w-[120px] object-contain" loading="lazy" />
+                <SopAwardImage image={row.image} crop={row.crop} label={row.name} />
               </div>
               <div className="flex items-center justify-center border-l border-border/70 px-3 py-4 text-center">
                 <span className="font-mono text-[12px] font-bold leading-6 text-foreground">{row.name}</span>
