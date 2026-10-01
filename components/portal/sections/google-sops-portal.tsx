@@ -284,15 +284,26 @@ function SopsBlock({ block, sectorCode, agency, reference }: { block: GoogleSops
 
 
 function SopsCoverSection({ agency, reference, code }: { agency: string; reference: string; code: string }) {
-  const cover = GOOGLE_SOPS.sections.find((section) => section.id === 't.0')
-  const image = cover?.blocks.find((block) => block.type === 'image')
+  const stableSealUrl = 'https://upload.wikimedia.org/wikipedia/commons/f/f3/Seal_of_Los_Angeles.svg'
+  const stableSealFallback = 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Seal_of_Los_Angeles.svg?width=1024'
 
   return (
     <div className="space-y-5">
-      {image && image.type === 'image' ? (
+      {code === 'LSPD' ? (
         <div className="flex justify-center rounded-2xl border border-border bg-background/35 p-5 sm:p-7">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.src} alt={image.alt} className="max-h-[430px] max-w-full object-contain" />
+          <img
+            src={stableSealUrl}
+            alt="Seal of Los Angeles"
+            className="max-h-[430px] max-w-full object-contain"
+            referrerPolicy="no-referrer"
+            onError={(event) => {
+              const img = event.currentTarget
+              if (img.dataset.fallback === '1') return
+              img.dataset.fallback = '1'
+              img.src = stableSealFallback
+            }}
+          />
         </div>
       ) : null}
 
