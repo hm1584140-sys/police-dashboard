@@ -434,8 +434,9 @@ function RankNamesSection({ sectorCode, ranks }: { sectorCode: string; ranks: st
 }
 
 // Keep the supplied artwork bundled with the site, independent of Google Docs URLs.
-function SopAwardImage({ image, label, crop }: {
+function SopAwardImage({ image, label, crop, monochrome = false }: {
   image: string
+  monochrome?: boolean
   label: string
   crop: { x: number; y: number; width: number; height: number }
 }) {
@@ -443,12 +444,16 @@ function SopAwardImage({ image, label, crop }: {
     <span
       role="img"
       aria-label={label}
-      className="block shrink-0 rounded-sm bg-white bg-no-repeat"
+      className="block shrink-0 bg-no-repeat"
       style={{
         width: crop.width,
         height: crop.height,
         backgroundImage: `url("${image}")`,
         backgroundPosition: `-${crop.x}px -${crop.y}px`,
+        // White paper becomes black after inversion; screen blending makes it
+        // disappear against any sector background while keeping stripes bright.
+        filter: monochrome ? 'invert(1)' : undefined,
+        mixBlendMode: monochrome ? 'screen' : undefined,
       }}
     />
   )
@@ -474,7 +479,7 @@ function ServiceStripesSection() {
             <div className="flex items-center justify-center border-l border-border/70 bg-muted/10 px-3 py-4 font-mono text-lg font-black text-primary">{row.n}</div>
             <div className="flex items-center border-l border-border/70 px-5 py-4 text-right text-sm leading-7 text-foreground/90">{row.desc}</div>
             <div className="flex items-center justify-center bg-background/20 p-3">
-              <SopAwardImage image={row.image} crop={row.crop} label={'شارة خدمة رقم ' + row.n} />
+              <SopAwardImage image={row.image} crop={row.crop} monochrome label={'شارة خدمة رقم ' + row.n} />
             </div>
           </div>
         ))}
