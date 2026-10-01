@@ -7,43 +7,43 @@ export const GOOGLE_SOPS_SPECIAL = {
         "n": 1,
         "desc": "تُمنح بعد إتمام فترة خدمة منتظمة دون تسجيل أي مخالفات مسلكية أو إدارية.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 2, "width": 56, "height": 54 }
+        "crop": { "x": 90, "y": 8, "width": 29, "height": 33 }
       },
       {
         "n": 2,
         "desc": "تُمنح عند إتمام فترة خدمة طويلة ومستمرة مع الحفاظ على كفاءة ميدانية عالية.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 60, "width": 56, "height": 54 }
+        "crop": { "x": 93, "y": 65, "width": 23, "height": 29 }
       },
       {
         "n": 3,
         "desc": "تُمنح للضباط المشاركين في مباشرة وتغطية بلاغات وحالات أمنية عالية الخطورة بنجاح.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 118, "width": 56, "height": 54 }
+        "crop": { "x": 95, "y": 124, "width": 19, "height": 35 }
       },
       {
         "n": 4,
         "desc": "تُمنح للضابط أو المنتسب الأكثر التزاماً بالزي الشرطي، الأوامر الإدارية، والتعامل الاحترافي.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 176, "width": 56, "height": 54 }
+        "crop": { "x": 92, "y": 181, "width": 25, "height": 35 }
       },
       {
         "n": 5,
         "desc": "تُخصص للأفراد الذين قدموا جهوداً استثنائية في حماية المواطنين وحفظ الأمن العام.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 234, "width": 56, "height": 54 }
+        "crop": { "x": 90, "y": 243, "width": 30, "height": 38 }
       },
       {
         "n": 6,
         "desc": "تُمنح للمتميزين في إدارة العمليات الإدارية، كتابة التقارير، وتنظيم البلاغات الرسمية.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 292, "width": 56, "height": 54 }
+        "crop": { "x": 97, "y": 301, "width": 15, "height": 45 }
       },
       {
         "n": 7,
         "desc": "تُمنح للضباط المسؤولين عن تدريب المستجدين أو إدارة الفرق الميدانية بكفاءة.",
         "image": "/sops/service-stripes.png",
-        "crop": { "x": 76, "y": 350, "width": 56, "height": 54 }
+        "crop": { "x": 94, "y": 359, "width": 21, "height": 40 }
       }
     ]
   },
